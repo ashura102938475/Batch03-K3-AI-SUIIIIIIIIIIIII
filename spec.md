@@ -180,27 +180,27 @@ Loại: [x] Tối ưu tính năng có sẵn  [ ] Tính năng mới
 
 ## §7. Kiểm Thử
 
-- **Chiều chất lượng & Định nghĩa kiểm chứng:**  
-  1. *Scope Detection Accuracy:* ≥ 80% câu hỏi nhận diện đúng 1 trong 4 phạm vi (Selected Text, Current Page, Current Document, Whole Session).  
-  2. *Citation Accuracy:* ≥ 75% câu trả lời tóm tắt trích dẫn đúng số slide/trang context.  
-  3. *Hallucination Rate:* 0% câu bịa đặt thông tin không có trong tài liệu khi khẳng định là từ slide.  
-  4. *Graceful Handoff Rate:* 100% case low-confidence hoặc out-of-scope có gợi ý hỏi lại hoặc chuyển TA.
+- **Chiều chất lượng & Định nghĩa kiểm chứng:**
+  1. *Decision Pass:* ≥ 85% câu hỏi nhận diện đúng intent, scope, clarification, behavior và quyết định chuyển TA.
+  2. *Live Answer Pass:* ≥ 70% case cần model đạt đồng thời yêu cầu nội dung, citation và workflow.
+  3. *Claim-level Citation Grounding:* ≥ 90% answer case có đủ claim kỳ vọng và claim nằm gần citation được human-label cho phép.
+  4. *Critical Failures:* 0 lỗi ở deadline/logistics, bài kiểm tra chấm điểm, credential, prompt attack hoặc trả lời khi nguồn không có căn cứ.
 
-- **Golden Set (20 cases chuẩn theo data analysis & turn IDs):**  
-  - **8 case Local Scope** (Current Page / Selected Text): T0649 (slide 37), T0523 (trang 9), T0520 (trang 63 vs 96), T0399 (biểu đồ trang 6), 4 case hỏi khái niệm/đoạn bôi đen trên trang đang xem.  
-  - **6 case Document Scope** (File PDF hiện tại): T1164 (trang 1-44), T0213 (tất cả slide PDF), 4 case tóm tắt file tài liệu Day 4, Day 5.  
-  - **4 case Session Scope** (Cả buổi học / Day N): T0408 (slide Day 5), T0345 (slide Day 4), 2 case tóm tắt tổng quan Buổi 6 & Buổi 3.  
-  - **2 case Out-of-scope / Security / Logistics:** T0707 (download tài liệu), T0794/T0582 (xin API key / prompt injection).
+- **Golden Set theo version:**
+  - **v2 Regression (23 case):** giữ nguyên để phát hiện code cũ bị regression; không dùng làm bằng chứng generalization.
+  - **v3 Robustness (31 case):** chạy qua FastAPI thật, gồm paraphrase, typo, teencode, mixed-language, selected-text mismatch, retrieved-but-insufficient, claim-level citation và 10 case từ chatlog/quan sát thực tế.
+  - Dataset đã phát hành không được sửa để làm điểm tăng. Thay đổi hành vi kỳ vọng hoặc cơ cấu case phải tạo version kế tiếp.
 
-- **Quality Bar (Chốt từ 23:59 N1):**  
-  > **Đạt khi:** ≥ 80% case qua bộ kiểm thử Golden Set (xác nhận đúng scope & cite đúng nguồn), 0 case bịa đặt thông tin ngoài học liệu, và 100% case ngoài phạm vi được xử lý từ chối an toàn hoặc chuyển TA.
+- **Quality Bar v3:**
+  > **Đạt khi:** ≥ 75% tổng case, ≥ 85% decision pass, ≥ 70% live answer pass, ≥ 90% claim-level citation grounding và 0 critical failure.
 
 - **Kết quả các lượt chạy (Tracking table):**
 
-| Lượt chạy | Ngày/Giờ | Số case test | Scope Acc (%) | Citation Acc (%) | Hallucination (%) | Đánh giá chung |
+| Lượt chạy | Ngày/Giờ | Số case test | Scope Acc (%) | Citation Grounding (%) | Critical / Hallucination | Đánh giá chung |
 |---|---|---|---|---|---|---|
 | Lượt 1 (Baseline VLearn Tutor) | 30/07 11:00 | 20 | 35.0% | 35.3% | 15.0% | Fail nhiều ở broad summary (55.8% no-access) & empty citation (64.7%). |
-| Lượt 2 (Smart Companion Prototype) | *Dự kiến CP3* | 20 | -- | -- | -- | *Sẽ cập nhật sau khi chạy prototype* |
+| Lượt 2 (v2 Regression) | 30/07 16:44 | 23 | 100.0% | 100.0% source-membership | Chưa đo semantic | 23/23, nhưng case và scorer bám sát implementation. |
+| Lượt 3 (v3 Robustness) | 30/07 17:10 | 31 | 58.06% | 64.71% claim-level | 6 critical fail | 16/31; backlog chính là paraphrase scope, safety paraphrase và conditional handoff. |
 
 ---
 
@@ -209,7 +209,7 @@ Loại: [x] Tối ưu tính năng có sẵn  [ ] Tính năng mới
 - **Phân công có tên:**  
   - **Spec & Architecture:** Member B (`[Tên B]`) — Chốt spec.md, flow thiết kế & 4 lớp chỗ khó.  
   - **Data Evidence & Mining:** Member A (`[Tên A]`) — Phân tích chatlog, đếm số liệu & trích lọc Turn IDs.  
-  - **Prompt & Golden Set Eval:** Member C (`[Tên C]`) — Viết prompt system scope-detection, RAG grounding & chạy eval 20 cases.  
+  - **Prompt & Golden Set Eval:** Member C (`[Tên C]`) — Quản lý bộ test theo version, human-label claim/source và chạy v3 robustness 31 cases.
   - **Code & Prototype:** Member D (`[Tên D]`) — Build UI VLearn Tutor sidebar & tích hợp API call RAG.  
   - **Validation & Demo:** Member E (`[Tên E]`) — Khảo sát willing users, ghi log feedback CP5 & chuẩn bị slide demo.
 

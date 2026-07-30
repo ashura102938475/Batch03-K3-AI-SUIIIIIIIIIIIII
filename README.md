@@ -105,14 +105,19 @@ http://localhost:8501
 
 ## Chạy đánh giá backend
 
-Golden set nằm tại `backend/eval/golden_set.json`.
+Các bộ test được giữ theo version trong `backend/eval/`:
+
+- `v2`: regression set đã đóng băng để kiểm tra code cũ không bị hỏng.
+- `v3`: robustness set chạy qua FastAPI, có paraphrase, typo, mixed-language,
+  claim-level citation và critical safety cases.
 
 ```powershell
 cd backend
-..\.venv\Scripts\python.exe eval_golden_set.py
+..\.venv\Scripts\python.exe eval_golden_set.py --version v3 --transport api
 ```
 
-Khi sửa logic trong `companion/`, hãy cập nhật golden set hoặc báo cáo trong `backend/eval/` nếu hành vi kỳ vọng thay đổi.
+Xem quy tắc version và các lệnh chạy khác tại `backend/eval/README.md`. Không sửa
+case đã phát hành chỉ để làm điểm tăng; thay đổi hành vi kỳ vọng phải tạo version kế tiếp.
 
 ## Lưu ý dữ liệu và bảo mật
 
