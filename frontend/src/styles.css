@@ -477,7 +477,6 @@ button:disabled {
 .viewer-toolbar > div,
 .scope-chip,
 .tool-button,
-.confidence-row,
 .guardrail-footer {
   display: flex;
   align-items: center;
@@ -1057,12 +1056,23 @@ button:disabled {
 .chat-log {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 14px;
   background: #f7f9fc;
+  cursor: grab;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.chat-log.dragging {
+  cursor: grabbing;
+  scroll-behavior: auto;
 }
 
 .empty-state {
@@ -1080,6 +1090,8 @@ button:disabled {
   line-height: 1.5;
   font-size: 13px;
   white-space: pre-wrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .message.user {
@@ -1088,6 +1100,7 @@ button:disabled {
   color: #fff;
   background: var(--blue);
   padding: 10px 12px;
+  overflow: visible;
 }
 
 .message.user p,
@@ -1098,9 +1111,17 @@ button:disabled {
 .message.assistant {
   align-self: flex-start;
   width: 100%;
+  min-width: 0;
   background: var(--surface);
   border: 1px solid var(--line);
   padding: 12px;
+  overflow: visible;
+}
+
+.message-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .message-meta {
@@ -1112,18 +1133,13 @@ button:disabled {
   padding-bottom: 8px;
   margin-bottom: 8px;
   border-bottom: 1px solid #eef2f7;
+  min-width: 0;
 }
 
-.confidence-row {
-  gap: 6px;
-  color: var(--green);
-  margin-top: 10px;
-  font-weight: 700;
-}
-
-.confidence-row small {
-  color: var(--muted);
-  font-weight: 500;
+.message-meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .link-section,
@@ -1171,12 +1187,14 @@ button:disabled {
 }
 
 .source-list {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
+  min-width: 0;
 }
 
-.source-list span {
+.source-chip {
+  width: 100%;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   padding: 5px 10px;
@@ -1184,6 +1202,52 @@ button:disabled {
   color: #334155;
   font-size: 12px;
   font-weight: 600;
+  line-height: 1.35;
+  text-align: left;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.source-chip.clickable {
+  cursor: pointer;
+}
+
+.source-chip.clickable:hover {
+  border-color: var(--blue);
+  background: #eff6ff;
+  color: var(--blue);
+}
+
+.source-chip:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+/* Page source — clickable button */
+.source-chip--page {
+  cursor: pointer;
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.source-chip--page:hover {
+  background: #dbeafe;
+  border-color: #3b82f6;
+  transform: translateY(-1px);
+}
+
+.source-chip--page:active {
+  transform: translateY(0);
+}
+
+/* Transcript source — static badge */
+.source-chip--transcript {
+  cursor: default;
+  border-color: #e9d5ff;
+  background: #faf5ff;
+  color: #7c3aed;
 }
 
 .clarify-actions {

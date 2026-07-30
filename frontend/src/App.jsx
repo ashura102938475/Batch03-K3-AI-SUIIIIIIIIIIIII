@@ -19,7 +19,6 @@ import {
   PlayCircle,
   Search,
   Send,
-  ShieldCheck,
   Sparkles,
   Target,
   SendHorizontal
@@ -861,21 +860,48 @@ function App() {
                     <>
                       <div className="message-meta">
                         <span>{message.scope?.label}</span>
-                        <span className="status-tag">{message.status}</span>
                       </div>
                       <div style={{ whiteSpace: "pre-wrap" }}>{message.text}</div>
-                      <div className="confidence-row">
-                        <ShieldCheck size={15} />
-                        <span>{message.confidence}%</span>
-                        <small>{message.model || message.scope?.reason}</small>
-                      </div>
                       {message.sources?.length > 0 ? (
                         <div className="source-section">
                           <span className="section-label">Trích dẫn (Grounding Sources):</span>
                           <div className="source-list">
-                            {message.sources.map((source) => (
-                              <span key={source}>{source}</span>
-                            ))}
+                            {message.sources.map((source) => {
+                              // Match: "filename.pdf - Trang N"  OR  "Trang N"
+                              const fullMatch = source.match(/^(.+?)\s*-\s*Trang\s+(\d+)$/i);
+                              const shortMatch = !fullMatch && source.match(/^Trang\s+(\d+)$/i);
+                              if (fullMatch || shortMatch) {
+                                const pageNum = fullMatch ? Number(fullMatch[2]) : Number(shortMatch[1]);
+                                const pdfName = fullMatch ? fullMatch[1].trim() : null;
+                                const targetDoc = pdfName
+                                  ? documents.find((d) => d.filename === pdfName || d.id === pdfName)
+                                  : null;
+                                const handleClick = () => {
+                                  if (targetDoc && targetDoc.id !== doc.id) {
+                                    changeDoc(targetDoc);
+                                    setTimeout(() => setPage(pageNum), 50);
+                                  } else {
+                                    goToPage(pageNum);
+                                  }
+                                };
+                                return (
+                                  <button
+                                    key={source}
+                                    type="button"
+                                    className="source-chip source-chip--page"
+                                    onClick={handleClick}
+                                    title={`Chuyển đến ${source}`}
+                                  >
+                                    {source}
+                                  </button>
+                                );
+                              }
+                              return (
+                                <span key={source} className="source-chip source-chip--transcript">
+                                  {source}
+                                </span>
+                              );
+                            })}
                           </div>
                         </div>
                       ) : null}
