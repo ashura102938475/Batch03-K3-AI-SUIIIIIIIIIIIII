@@ -60,8 +60,18 @@ def get_active_provider(provider_name: str | None = None):
 
 # ===================================================================== SCHEMAS
 
-IntentType = Literal["summary", "explain", "logistics", "out_of_scope", "prompt_attack"]
-ScopeType = Literal["selected_text", "current_page", "current_document", "whole_session", "ambiguous"]
+IntentType = Literal[
+    "summary",
+    "explain",
+    "definition",
+    "compare",
+    "quiz",
+    "misconception",
+    "logistics",
+    "out_of_scope",
+    "prompt_attack",
+]
+ScopeType = Literal["selected_text", "current_page", "current_document", "whole_session", "ambiguous", "out_of_scope"]
 
 
 class DetectIntentRequest(BaseModel):
@@ -252,7 +262,8 @@ def retrieve_context_api(req: RetrieveContextRequest) -> RetrieveContextResponse
         "out_of_scope": "Bỏ qua retrieval (ngoài phạm vi)",
     }
 
-    chunks = corpus_search(req.query, scope_res, CORPUS, selection=req.selection, top_k=req.top_k)
+    intent = detect_intent(req.query)
+    chunks = corpus_search(req.query, scope_res, CORPUS, selection=req.selection, top_k=req.top_k, task=intent)
     items = [
         ContextChunkItem(
             chunk_id=c.chunk_id,
@@ -295,7 +306,8 @@ def generate_response_api(req: GenerateResponseRequest) -> GroundedAnswerPayload
         for c in req.chunks
     ]
 
-    answer = generate(req.query, scope_res, chunks, provider=provider, model=req.model)
+    intent = detect_intent(req.query)
+    answer = generate(req.query, scope_res, chunks, provider=provider, model=req.model, include_external_citations=False, task=intent)
     return GroundedAnswerPayload(
         text=answer["text"],
         sources_used=answer["sources"],
@@ -322,9 +334,12 @@ def full_chat_pipeline(req: ChatPipelineRequest) -> ChatPipelineResponse:
         scope_res.scope = req.forced_scope
         scope_res.confidence = "cao"
         scope_res.reason = "Bạn đã chọn phạm vi này khi mình hỏi lại."
+        scope_res.target_day = scope_res.target_day or req.current_day
+        if req.forced_scope in ("selected_text", "current_page"):
+            scope_res.target_page = scope_res.target_page or req.current_page
 
-    chunks = corpus_search(req.query, scope_res, CORPUS, selection=req.selection)
-    answer = generate(req.query, scope_res, chunks, provider=provider, model=req.model)
+    chunks = corpus_search(req.query, scope_res, CORPUS, selection=req.selection, task=intent)
+    answer = generate(req.query, scope_res, chunks, provider=provider, model=req.model, include_external_citations=False, task=intent)
 
     record = build_record(
         query=req.query,

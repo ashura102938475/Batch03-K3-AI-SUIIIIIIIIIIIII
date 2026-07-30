@@ -22,6 +22,7 @@ from companion.text import fold_text, terms
 
 ROOT = Path(__file__).resolve().parents[1]
 CORPUS_DIR = ROOT / "corpus"
+DATA_SLIDES_DIR = ROOT.parent / "data" / "vlearn-pack" / "slides"
 DEFAULT_TRANSCRIPT = ROOT.parent / "data" / "vlearn-pack" / "transcript" / "transcript-04-clean.md"
 
 TRANSCRIPT_DAY = "day01"
@@ -69,11 +70,9 @@ def _parse_frontmatter(raw: str) -> tuple[dict[str, Any], str]:
 def load_slides() -> list[Chunk]:
     """Load slides from Markdown and PDF files in CORPUS_DIR."""
     chunks: list[Chunk] = []
-    if not CORPUS_DIR.exists():
-        return chunks
 
     # 1. Parse markdown slides
-    for path in sorted(CORPUS_DIR.glob("*.md")):
+    for path in sorted(CORPUS_DIR.glob("*.md")) if CORPUS_DIR.exists() else []:
         if path.name.startswith("transcript") or path.name.lower() == "readme.md":
             continue
         meta, body = _parse_frontmatter(path.read_text(encoding="utf-8"))
@@ -109,8 +108,13 @@ def load_slides() -> list[Chunk]:
                 buffer.append(line)
         flush()
 
-    # 2. Parse PDF slides
-    for path in sorted(CORPUS_DIR.glob("*.pdf")):
+    # 2. Parse PDF slides from repo corpus and supplied data pack without copying data.
+    pdf_paths: list[Path] = []
+    for directory in (CORPUS_DIR, DATA_SLIDES_DIR):
+        if directory.exists():
+            pdf_paths.extend(sorted(directory.glob("*.pdf")))
+
+    for path in pdf_paths:
         doc_id = path.name
         title = path.stem
         day_match = re.search(r"d(\d+)", path.name, re.IGNORECASE)
@@ -185,19 +189,45 @@ def available_days(chunks: list[Chunk]) -> set[str]:
     return {chunk.day for chunk in chunks}
 
 
-def search(query: str, scope_result, chunks: list[Chunk], *, selection: str = "", top_k: int = 6) -> list[Chunk]:
+def _compare_terms(query: str) -> set[str]:
+    folded = fold_text(query)
+    cleaned = re.sub(r"\b(so sanh|phan biet|khac nhau|giong nhau|khac gi|voi|va|vs|versus|trong|tai lieu|slide|trang|nay|la gi)\b", " ", folded)
+    return {term for term in terms(cleaned) if len(term) > 2}
+
+
+def _ordered_representative(pool: list[Chunk], limit: int) -> list[Chunk]:
+    slides = [c for c in pool if c.kind == "slide" and c.page is not None]
+    if not slides:
+        return sorted(pool, key=lambda c: (c.page is None, c.page or 0))[:limit]
+    by_page: dict[int, Chunk] = {}
+    for chunk in sorted(slides, key=lambda c: c.page or 0):
+        if chunk.page is not None and chunk.page not in by_page:
+            by_page[chunk.page] = chunk
+    pages = list(by_page)
+    if len(pages) <= limit:
+        return [by_page[p] for p in pages]
+    step = max(1, len(pages) // limit)
+    sampled = pages[::step][:limit]
+    if pages[-1] not in sampled:
+        sampled[-1] = pages[-1]
+    return [by_page[p] for p in sampled]
+
+
+def search(query: str, scope_result, chunks: list[Chunk], *, selection: str = "", top_k: int = 6, task: str | None = None) -> list[Chunk]:
     scope = scope_result.scope
 
-    if scope == "out_of_scope":
+    if scope in ("out_of_scope", "ambiguous"):
         return []
 
     if scope == "selected_text":
         if not selection.strip():
             return []
+        page = scope_result.target_page
+        cite = f"Trang {page} · đoạn bôi đen" if page is not None else "Trang hiện tại · đoạn bôi đen"
         return [Chunk(
             chunk_id="selection", day=scope_result.target_day or "", doc_id="đoạn bôi đen",
-            title="Đoạn bạn đang bôi đen", page=scope_result.target_page,
-            cite=f"Trang {scope_result.target_page} · đoạn bôi đen",
+            title="Đoạn bạn đang bôi đen", page=page,
+            cite=cite,
             text=selection.strip(), kind="selection", score=99,
         )]
 
@@ -217,11 +247,33 @@ def search(query: str, scope_result, chunks: list[Chunk], *, selection: str = ""
     if not pool:
         return []
 
+    if task == "summary" and scope in ("current_document", "whole_session"):
+        return _ordered_representative(pool, top_k)
+
     query_terms = terms(query)
+    folded_query = fold_text(query)
+    asks_definition = task == "definition" or any(signal in folded_query for signal in (" la gi", "nghia la", "khai niem"))
+    compare_terms = _compare_terms(query) if task == "compare" else set()
     for chunk in pool:
         title_terms = terms(f"{chunk.title} {chunk.doc_id}")
         body_terms = terms(chunk.text)
         chunk.score = len(query_terms & body_terms) + 3 * len(query_terms & title_terms)
+        if asks_definition:
+            folded_body = fold_text(chunk.text)
+            for term in query_terms:
+                if f"{term} la gi" in folded_body or f"khai niem {term}" in folded_body:
+                    chunk.score += 8
+                elif term in body_terms and any(signal in folded_body for signal in ("la mot", "model nen", "mo hinh", "dinh nghia")):
+                    chunk.score += 2
+        if task == "compare" and compare_terms:
+            hits = compare_terms & body_terms
+            chunk.score += 4 * len(hits)
+            if len(hits) >= 2:
+                chunk.score += 8
+        if task in ("quiz", "misconception"):
+            folded_body = fold_text(chunk.text)
+            if any(signal in folded_body for signal in ("khong phai", "luu y", "nham", "khac", "vi du", "la mot")):
+                chunk.score += 3
 
     if all(chunk.score == 0 for chunk in pool):
         ordered = sorted(pool, key=lambda c: (c.page is None, c.page or 0))
