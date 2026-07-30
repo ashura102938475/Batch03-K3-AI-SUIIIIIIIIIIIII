@@ -126,7 +126,7 @@ Loại: [x] Tối ưu tính năng có sẵn  [ ] Tính năng mới
   1. Học viên gõ: *"Tóm tắt nội dung chính buổi 6 cho mình"*.  
   2. System nhận diện: Intent `summary`, Scope `Whole Session (Day 6)`.  
   3. System truy xuất slide PDF Day 6 + transcript liên quan.  
-  4. Trả về câu trả lời chuẩn định dạng: **Tổng quan**, **Ý chính (3-5 điểm)**, **Keyword cần nhớ**, **Phần dễ nhầm**, đính kèm **Citation [Slide 8, 15, 24]** và **Độ tin cậy: Cao**.
+  4. Trả về câu trả lời chuẩn định dạng: **Tổng quan**, **Ý chính (3-5 điểm)**, **Keyword cần nhớ**, **Phần dễ nhầm**, đính kèm **Citation nội bộ [Slide 8, 15, 24]**, **External Citation mở rộng [Python Docs / Official Reference]**, **TA Contact Suggestion [Gửi câu hỏi cho TA]** và **Độ tin cậy: Cao**.
 
 - **Low-confidence path (②):**  
   1. Học viên hỏi về một chủ đề nâng cao ít xuất hiện trong slide.  
