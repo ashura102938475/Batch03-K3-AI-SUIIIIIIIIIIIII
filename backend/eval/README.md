@@ -8,6 +8,10 @@ older score.
 | v2 | Frozen implementation regression set | `golden_set_v2.json` | `EVAL_REPORT_V2.md` |
 | v3 | Robustness and API-workflow baseline | `golden_set_v3.json` | `EVAL_REPORT_V3.md` |
 
+The strict v3 report is complemented by `MANUAL_REVIEW_V3.md`, which reads every
+saved response and distinguishes full, partial, core-failure and overly strict
+test outcomes.
+
 ## Run
 
 From `backend/`:
