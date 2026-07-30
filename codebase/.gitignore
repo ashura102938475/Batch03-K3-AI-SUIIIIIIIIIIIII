@@ -1,0 +1,6 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+# Trace tự sinh — giữ tay vài file mẫu bằng `git add -f runs/<file>.json` để làm evidence
+runs/*.json
