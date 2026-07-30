@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VLearn - Smart Contextual Companion</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Google Fonts for crisp typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="light-theme">
+  <!-- Interactive Demo Flow Controller Bar -->
+  <div class="demo-controller-bar">
+    <div class="demo-bar-inner">
+      <span class="demo-tag">🚀 DEMO SCENARIOS:</span>
+      <div class="demo-flow-buttons">
+        <button class="flow-btn active" data-flow="screenshot">1. Giao diện mẫu (Screenshot)</button>
+        <button class="flow-btn" data-flow="highlight">2. Bôi đen & Hỏi Trang 17</button>
+        <button class="flow-btn" data-flow="ai-error">3. Lỗi AI / Thử lại sau</button>
+        <button class="flow-btn" data-flow="high-confidence">4. Citation & Tin cậy cao (92%)</button>
+        <button class="flow-btn" data-flow="out-of-scope">5. Câu hỏi ngoài phạm vi (Chuyển TA)</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-container">
+    <!-- TOP NAVBAR -->
+    <header class="vlearn-header">
+      <div class="header-left">
+        <button class="icon-btn back-btn" title="Quay lại">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="brand-logo">
+          <svg class="v-logo-icon" width="24" height="24" viewBox="0 0 40 40">
+            <path d="M8 8 L20 32 L32 8" stroke="#E11D48" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M16 8 L20 20 L24 8" stroke="#2563EB" stroke-width="4" fill="none" stroke-linecap="round"/>
+          </svg>
+          <span class="brand-name">VLearn</span>
+        </div>
+        <div class="doc-title-badge">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <div class="doc-meta">
+            <span class="doc-filename" id="currentDocFilename">day04-prompt-engineering-tool-calling.pdf</span>
+            <span class="doc-subtext">COMP2010 · Lecture_material_ms204i6x_gqwyya</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <button class="lang-select-btn">
+          <span>VI</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <button class="icon-btn theme-toggle-btn" id="themeToggle" title="Chuyển chế độ tối/sáng">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+        <div class="user-profile-pill">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span>Sinh viên ẩn danh</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- MAIN THREE-COLUMN WORKSPACE -->
+    <main class="vlearn-body">
+      <!-- COLUMN 1: LEFT SIDEBAR (COURSE MATERIALS) -->
+      <aside class="sidebar-col">
+        <div class="col-header">
+          <div class="header-title-group">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            <div>
+              <h3>Học liệu môn học</h3>
+              <p class="subtitle">Chương, slide và tài liệu đã upload</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-list">
+          <!-- Day 1 -->
+          <div class="accordion-item">
+            <button class="accordion-header">
+              <div class="acc-left">
+                <svg class="acc-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span class="day-title">Day 1</span>
+              </div>
+              <div class="acc-right">
+                <span class="meta-tag">2 TÀI LIỆU · ACTIVE</span>
+                <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+              </div>
+            </button>
+            <div class="accordion-content hidden">
+              <div class="doc-file-item">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+                <span>day01-introduction-to-ai.pdf</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Day 2 -->
+          <div class="accordion-item">
+            <button class="accordion-header">
+              <div class="acc-left">
+                <svg class="acc-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span class="day-title">Day 2</span>
+              </div>
+              <div class="acc-right">
+                <span class="meta-tag">1 TÀI LIỆU · ACTIVE</span>
+                <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+              </div>
+            </button>
+          </div>
+
+          <!-- Day 3 -->
+          <div class="accordion-item">
+            <button class="accordion-header">
+              <div class="acc-left">
+                <svg class="acc-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span class="day-title">Day 3</span>
+              </div>
+              <div class="acc-right">
+                <span class="meta-tag">2 TÀI LIỆU · ACTIVE</span>
+                <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+              </div>
+            </button>
+          </div>
+
+          <!-- Day 4 (Active / Expanded) -->
+          <div class="accordion-item open">
+            <button class="accordion-header">
+              <div class="acc-left">
+                <svg class="acc-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span class="day-title">Day 4</span>
+              </div>
+              <div class="acc-right">
+                <span class="studying-badge">STUDYING</span>
+                <span class="meta-tag">3 TÀI LIỆU · ACTIVE</span>
+                <svg class="chevron rot-180" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+              </div>
+            </button>
+
+            <div class="accordion-content">
+              <div class="doc-file-item active" data-doc="day04-prompt-engineering-tool-calling.pdf">
+                <div class="file-icon-wrap">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+                </div>
+                <div class="file-info">
+                  <span class="file-name">day04-prompt-engineeri...</span>
+                  <span class="file-pages">43 trang</span>
+                </div>
+                <svg class="check-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+              </div>
+
+              <div class="doc-file-item" data-doc="day04-part2.pdf">
+                <div class="file-icon-wrap">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+                </div>
+                <div class="file-info">
+                  <span class="file-name">day04-prompt-engineering-...</span>
+                  <span class="file-pages">78 trang</span>
+                </div>
+              </div>
+
+              <div class="doc-file-item" data-doc="day04-part3.pdf">
+                <div class="file-icon-wrap">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+                </div>
+                <div class="file-info">
+                  <span class="file-name">day04-prompt-engineering-...</span>
+                  <span class="file-pages">98 trang</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- COLUMN 2: CENTER PANEL (PDF VIEWER CANVAS) -->
+      <section class="viewer-col">
+        <!-- Toolbar -->
+        <div class="viewer-toolbar">
+          <div class="toolbar-left">
+            <button class="tool-btn active"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Đọc</button>
+            <button class="tool-btn icon-only" title="Ghi chú"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
+            <span class="note-pill">Trang 2 - 1 note</span>
+          </div>
+
+          <div class="toolbar-center">
+            <button class="tool-btn icon-only" id="zoomOut">-</button>
+            <span class="zoom-level" id="zoomVal">100%</span>
+            <button class="tool-btn icon-only" id="zoomIn">+</button>
+          </div>
+
+          <div class="toolbar-right">
+            <button class="tool-btn icon-only"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+            <button class="tool-btn icon-only"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg></button>
+            <button class="tool-btn icon-only"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+            <button class="tool-btn icon-only"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg></button>
+            <button class="tool-btn icon-only"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg></button>
+            <button class="tool-btn icon-only"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+          </div>
+        </div>
+
+        <!-- Canvas Container -->
+        <div class="canvas-viewport" id="canvasViewport">
+          <!-- Floating instruction hint -->
+          <div class="canvas-floating-hint">Giữ chuột phải và kéo để di chuyển canvas</div>
+
+          <!-- Slide 1 Container -->
+          <div class="slide-page-wrapper" id="pageWrapper1" data-page="1">
+            <div class="page-meta-header">
+              <span class="page-num-label">Trang 1 / 43</span>
+              <span class="page-doc-tag">day04-prompt-engineering-tool-calling.pdf</span>
+            </div>
+            
+            <div class="slide-content-layout">
+              <!-- Mock PDF Slide Render 1 -->
+              <div class="slide-card slide-cover">
+                <div class="slide-header-brand">
+                  <svg width="20" height="20" viewBox="0 0 40 40"><path d="M8 8 L20 32 L32 8" stroke="#FFFFFF" stroke-width="6" fill="none"/><path d="M16 8 L20 20 L24 8" stroke="#60A5FA" stroke-width="4" fill="none"/></svg>
+                  <span>VINUNIVERSITY</span>
+                </div>
+                <div class="slide-body-cover">
+                  <h1 class="slide-main-title">Prompt Engineering & Tool Calling</h1>
+                  <p class="slide-sub-title">How-to-in-nature · Làm sao để AI hiểu đúng ý bạn</p>
+                  <div class="slide-author">
+                    <span>Tạ Giảng Viên</span>
+                    <small>VinUniversity · Phase 1 · Tuần 1 · 2026</small>
+                  </div>
+                </div>
+              </div>
+
+              <div class="slide-side-note">
+                <p>Kéo đến trang này để mở note riêng của trang.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Slide 2 Container (Active Page in Screenshot) -->
+          <div class="slide-page-wrapper active" id="pageWrapper2" data-page="2">
+            <div class="page-meta-header">
+              <span class="page-num-label">Trang 2 / 43</span>
+              <span class="page-doc-tag">day04-prompt-engineering-tool-calling.pdf</span>
+            </div>
+
+            <div class="slide-content-layout">
+              <!-- Mock PDF Slide Render 2 -->
+              <div class="slide-card slide-question-card">
+                <div class="quote-box">
+                  <span class="quote-tag">Shoe mock</span>
+                  <p class="quote-text">
+                    “Hai người hỏi AI cùng một việc, một người nhận kết quả xuất sắc, người kia nhận rác. Tại sao?”
+                  </p>
+                  <span class="quote-subtext">Câu hỏi khởi động trước khi học về Prompt</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Slide 17 Container (For Demo Highlight Flow) -->
+          <div class="slide-page-wrapper" id="pageWrapper17" data-page="17">
+            <div class="page-meta-header">
+              <span class="page-num-label">Trang 17 / 43</span>
+              <span class="page-doc-tag">day04-prompt-engineering-tool-calling.pdf</span>
+            </div>
+
+            <div class="slide-content-layout">
+              <div class="slide-card slide-details-card">
+                <h3 class="slide-heading">Cấu trúc Prompt chuẩn kỹ thuật</h3>
+                <div class="selectable-text-block" id="highlightableArea">
+                  <p>1. <strong>Role/Persona:</strong> Định nghĩa vai trò của AI.</p>
+                  <p>2. <strong>Context:</strong> Ngữ cảnh bài học & dữ liệu liên quan.</p>
+                  <p class="highlight-target"><mark class="yellow-mark" id="markConstraints">“Constraints:”</mark> Giới hạn phạm vi câu trả lời, không bịa đặt khi thiếu tài liệu.</p>
+                  <p>4. <strong>Format Output:</strong> Định dạng kết quả đầu ra mong muốn.</p>
+                </div>
+                <small class="highlight-hint">💡 Bôi đen chữ <mark>“Constraints:”</mark> để hỏi Tutor</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Canvas Footer Pagination -->
+        <div class="viewer-footer-nav">
+          <button class="nav-arrow-btn" id="prevPageBtn" title="Trang trước">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div class="page-indicator">
+            <span>Trang</span>
+            <input type="text" value="2" id="currentPageInput" aria-label="Số trang" />
+            <span>/ 43</span>
+          </div>
+          <button class="nav-arrow-btn" id="nextPageBtn" title="Trang sau">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- COLUMN 3: RIGHT PANEL (VLEARN TUTOR CHAT) -->
+      <aside class="tutor-col">
+        <!-- Tutor Header -->
+        <div class="tutor-header">
+          <div class="tutor-branding">
+            <div class="tutor-avatar">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2"><path d="M12 2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/><path d="M9 17h6"/></svg>
+            </div>
+            <div>
+              <h3 class="tutor-title">VLearn Tutor</h3>
+              <p class="tutor-subtitle">Trợ lý học theo ngữ cảnh</p>
+            </div>
+          </div>
+
+          <div class="tutor-header-actions">
+            <button class="tutor-icon-btn" title="Lịch sử trò chuyện">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </button>
+            <button class="tutor-icon-btn" id="newChatBtn" title="Trò chuyện mới">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+            <span class="context-pill" id="contextPillTag">Trang slide: 2</span>
+          </div>
+        </div>
+
+        <!-- Quota Progress Bar -->
+        <div class="quota-bar-wrapper">
+          <div class="quota-info">
+            <span>Quota Tutor trong ngày</span>
+            <span class="quota-count" id="quotaCount">1/15 câu</span>
+            <button class="byok-btn">⚡ BYOK</button>
+          </div>
+          <div class="quota-progress-track">
+            <div class="quota-progress-fill" id="quotaFill" style="width: 7%;"></div>
+          </div>
+        </div>
+
+        <!-- Messages Stream Container -->
+        <div class="chat-messages-container" id="chatMessages">
+          <!-- Screenshot Flow Messages (Populated dynamically by JS) -->
+        </div>
+
+        <!-- Tutor Input Field & Send Button -->
+        <div class="tutor-input-area">
+          <form class="chat-form" id="chatForm">
+            <div class="input-wrapper">
+              <input
+                type="text"
+                id="userMessageInput"
+                placeholder="Nhập câu hỏi hoặc bôi đen tài liệu..."
+                autocomplete="off"
+              />
+              <button type="submit" class="send-message-btn" title="Gửi câu hỏi">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </div>
+          </form>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
