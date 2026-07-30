@@ -1,21 +1,26 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+
 :root {
   color-scheme: light;
-  --bg: #eef2f7;
+  --bg: #f8fafc;
   --surface: #ffffff;
-  --surface-soft: #f8fafc;
-  --line: #dbe3ee;
-  --line-strong: #c7d2e1;
-  --text: #101828;
-  --muted: #667085;
-  --faint: #98a2b3;
-  --blue: #2463eb;
-  --blue-soft: #eaf1ff;
+  --surface-soft: #f1f5f9;
+  --line: #e2e8f0;
+  --line-strong: #cbd5e1;
+  --text: #0f172a;
+  --muted: #475569;
+  --faint: #94a3b8;
+  --blue: #2563eb;
+  --blue-dark: #1e3a8a;
+  --blue-soft: #eff6ff;
   --rose: #e11d48;
-  --rose-soft: #fff1f3;
-  --green: #0f9f6e;
-  --amber: #b7791f;
-  --shadow: 0 14px 35px rgb(16 24 40 / 0.12);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --rose-soft: #fff1f2;
+  --green: #10b981;
+  --amber: #d97706;
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 20px 40px -10px rgba(15, 23, 42, 0.12), 0 10px 15px -5px rgba(15, 23, 42, 0.06);
+  font-family: "Plus Jakarta Sans", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 * {
@@ -1086,20 +1091,24 @@ button:disabled {
 }
 
 .message {
-  border-radius: 8px;
-  line-height: 1.5;
-  font-size: 13px;
+  border-radius: 14px;
+  line-height: 1.6;
+  font-size: 13.5px;
   white-space: pre-wrap;
   min-width: 0;
   overflow-wrap: anywhere;
+  transition: transform 0.15s ease;
 }
 
 .message.user {
   align-self: flex-end;
-  max-width: 86%;
-  color: #fff;
-  background: var(--blue);
-  padding: 10px 12px;
+  max-width: 85%;
+  color: #ffffff;
+  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+  padding: 10px 16px;
+  border-radius: 18px 18px 4px 18px;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
+  font-weight: 500;
   overflow: visible;
 }
 
@@ -1114,7 +1123,9 @@ button:disabled {
   min-width: 0;
   background: var(--surface);
   border: 1px solid var(--line);
-  padding: 12px;
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
   overflow: visible;
 }
 
