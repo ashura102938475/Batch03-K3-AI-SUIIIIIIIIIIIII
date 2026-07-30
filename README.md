@@ -1,105 +1,146 @@
-# Mini Hackathon AI — Batch 03
+# VLearn Smart Contextual Companion
 
-**SPEC → Prototype → Demo.** Đây không phải cuộc thi code — đây là cuộc thi **tư duy sản phẩm AI**.
+Prototype trợ lý học tập theo ngữ cảnh cho VLearn. Ứng dụng cho phép học viên hỏi về slide, tài liệu hoặc buổi học hiện tại; backend nhận diện intent/scope, truy xuất ngữ cảnh liên quan, rồi trả lời có citation hoặc chuyển hướng TA khi thiếu chắc chắn.
 
-- Thời lượng: **1,5 ngày** (một ngày build + một buổi demo)
-- Nhóm: **4-5 người** · zone tối đa 5 nhóm · thi theo lớp
+Repo này có 2 phần chính:
 
-## Tài liệu nhóm
+- `backend/`: FastAPI API, Streamlit prototype, pipeline AI/retrieval/eval.
+- `frontend/`: giao diện React chạy bằng Vite, gọi API tại `http://localhost:8000`.
 
-Nhóm đang theo đề tài **VLearn Smart Contextual Companion**.
-- **AI SPEC chính thức:** [`spec.md`](spec.md)
-- **Tài liệu dự án, canvas, context & data analysis:** [`docs/`](docs/README.md)
-- **Đánh giá điểm yếu VLearn Tutor:** [`vlearn-tutor-diem-yeu.md`](vlearn-tutor-diem-yeu.md)
+## Yêu cầu cài đặt
 
-## Bắt đầu từ đâu?
+Cài sẵn:
 
-1. Đọc **`spec.md`** — AI SPEC đã chốt theo chuẩn hackathon.
-2. Đọc **`01-de-bai.md`** & **`02-guide.md`** — hướng dẫn từng giai đoạn.
-3. Tham khảo **`03-template-ai-spec.md`** & **`04-rubric.md`** — tiêu chí chấm điểm và mốc xác minh.
+- Python 3.10+
+- Node.js 20+
+- npm
 
-| File / thư mục | Nội dung |
-|---|---|
-| `spec.md` | **AI SPEC chính thức của nhóm** (9 phần đầy đủ) |
-| `docs/` | `cp1-canvas-and-slide-script.md`, `agent-context-...md`, `data-analysis-...md` |
-| `vlearn-tutor-diem-yeu.md` | Tổng hợp điểm yếu & cơ hội sản phẩm cho VLearn Tutor |
-| `01-de-bai.md` | Đề bài 3 hướng · 5 tiêu chí nghiệm thu · ràng buộc chung |
-| `02-guide.md` | Hướng dẫn 5 giai đoạn: khám phá → spec → build → đo & validate → demo |
-| `03-template-ai-spec.md` | Template AI Spec (nộp 23:59 ngày 1) |
-| `04-rubric.md` | Rubric 100 điểm (25 nộp checkpoint + 75 chấm bài) + checklist xác minh 6 mốc |
-| `data/` | Dữ liệu thật đã ẩn danh: chatlog VLearn tutor + 6 transcript bài giảng + 2 bộ slide bản hackathon — dùng để tìm bằng chứng và xây golden set |
-| `tham-khao/` | JTBD Playbook (PDF) + worksheet JTBD đầy đủ — đọc khi muốn đào sâu |
+Các lệnh bên dưới giả định bạn đang dùng PowerShell tại thư mục gốc của repo.
 
-## Lịch — 6 mốc
+## Cấu trúc thư mục
 
-| Mốc | Khoá 3 | Khoá 4 |
-|---|---|---|
-| Khai mạc + phát đề | 09:00 ngày 1 | 14:00 ngày 1 |
-| CP1 · Chốt Canvas | 10:00 ngày 1 | 15:00 ngày 1 |
-| CP2 · Show được thứ bấm được | 12:00 ngày 1 | 17:00 ngày 1 |
-| CP3 · AI chạy thật + đo lượt đầu | 16:00 ngày 1 | 10:30 ngày 2 |
-| CP4 · Chốt tiến độ — spec nộp hạn cứng **23:59 ngày 1** | 17:30 ngày 1 | 12:00 ngày 2 |
-| CP5 · Xác minh + validation + dry run | 09:00 ngày 2 | 14:00 ngày 2 |
-| CP6 · Demo | 10:00 ngày 2 | 15:00 ngày 2 |
-
-Mỗi mốc cần show gì và được xác minh thế nào: xem bảng trong `04-rubric.md`.
-
-## Nộp bài
-
-Một repo nhóm, cấu trúc như sau. Spec chốt lúc 23:59 ngày 1; bản hoàn chỉnh trước CP6.
-
-```
-repo/
-├── README.md          ← thành viên (mã HV + tên) + phân công có tên từng phần
-├── spec.md            ← AI Spec theo 03-template-ai-spec.md
-├── demo-slides.pdf    ← slide 6 trang theo 02-guide.md §5.1
-├── codebase/          ← prototype (ghi rõ phần nào mock)
-├── eval/              ← golden set + bảng kết quả các lượt chạy
-├── validation/        ← feedback log từ vòng user test
-└── reflection/        ← mỗi người 1 file
+```text
+backend/
+  api.py                 # FastAPI backend cho frontend
+  app.py                 # Streamlit prototype
+  companion/             # intent, scope, retrieval, answer, trace
+  providers/             # wrapper các LLM provider
+  corpus/                # slide/corpus mock
+  eval/                  # golden set và kết quả đánh giá
+frontend/
+  src/App.jsx            # UI chính
+  src/data/slides.js     # dữ liệu slide mock cho UI
+data/                    # data course được cấp, không commit ra ngoài
+docs/, spec.md           # tài liệu sản phẩm và AI spec
 ```
 
-## Chấm điểm
+## Setup backend
 
-Tổng **100 điểm = 25 điểm nộp checkpoint + 75 điểm chấm bài nộp**. Chi tiết từng ý điểm: `04-rubric.md`.
+Tạo virtual environment và cài dependency:
 
-**25 điểm nộp — mỗi checkpoint 5 điểm (CP1-CP5):** nộp đúng hạn → 5 điểm · nộp muộn → 0 điểm cho mốc đó. Mỗi thành viên nộp riêng, cả nhóm dùng chung một link repo.
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+Copy-Item backend\.env.example backend\.env
+```
 
-**75 điểm chấm — trên artifact trong repo, mỗi con điểm trỏ về một file:**
+Nếu chưa có API key, backend vẫn chạy ở mock mode.
 
-| Khối | Điểm | Chấm trên file nào |
-|---|---|---|
-| R1 · Bằng chứng & impact | 15 | `spec.md` §1-§2 + log khảo sát/mining |
-| R2 · Lát cắt & thiết kế | 15 | `spec.md` §4 |
-| R3 · Chỗ khó & kịch bản rủi ro | 11 | `spec.md` §5-§6 |
-| R4 · Kiểm thử | 15 | `spec.md` §7 + `eval/` |
-| R5 · Prototype chạy được | 8 | `codebase/` + demo |
-| R6 · Validation với user | 8 | `validation/` |
-| R7 · Quy trình & repo | 3 | cấu trúc repo |
+Muốn dùng LLM thật, mở `backend/.env` và điền một provider:
 
-Ba điều nên biết trước khi làm:
+```env
+DEFAULT_PROVIDER=nvidia
+NVIDIA_API_KEY=your_key_here
+```
 
-- Điểm dựa trên **chuỗi quyết định và bằng chứng**, không dựa trên mức độ hoành tráng của sản phẩm.
-- Kết quả đo **ghi nhận trung thực** — kể cả khi không đạt mục tiêu nhóm tự đặt — vẫn được tính đủ điểm. Số liệu bị chỉnh sửa hoặc che giấu sẽ không được tính.
-- Reflection cá nhân chấm riêng theo rubric của khoá. Điểm vòng demo, chấm chéo trong zone và thưởng thêm (nếu có) theo thể lệ công bố lúc khai mạc.
+Các provider hỗ trợ: `nvidia`, `gemini`, `openai`, `openrouter`, `anthropic`.
 
-## Luật chung
+## Chạy backend API
 
-1. Prototype có 3 mức **Sketch / Mock / Working** — mức nào cũng bắt buộc **≥1 lời gọi AI chạy thật**.
-2. **Vibe-coding rule:** dùng AI để build thoải mái, nhưng không giải thích được phần có tên mình thì phần đó 0 điểm (kiểm tra tại CP5).
-3. **Quality bar** chốt tại spec.md 23:59 ngày 1 và giữ nguyên sau đó.
-4. Chỉ dùng dữ liệu trong `data/` hoặc dữ liệu giả tự sinh — không dùng dữ liệu thật của người thật. Không commit API key.
-5. Tuân thủ **quy định bảo mật dữ liệu** bên dưới — đây là điều kiện để được cấp data.
+```powershell
+cd backend
+..\.venv\Scripts\python.exe -m uvicorn api:app --host 127.0.0.1 --port 8000
+```
 
-## Bảo mật dữ liệu được cung cấp
+Kiểm tra backend:
 
-Dữ liệu trong `data/` là dữ liệu thật của khoá học (đã ẩn danh), cấp riêng cho hackathon này. Khi nhận data, nhóm cam kết:
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/health
+```
 
-1. **Chỉ dùng trong phạm vi hackathon** — cho việc tìm bằng chứng, xây golden set và build prototype. Không dùng cho mục đích khác.
-2. **Không chia sẻ ra ngoài khoá học** — không đăng lên mạng xã hội, không gửi cho người ngoài, không đưa vào bất kỳ dataset hay repo công khai nào.
-3. **Không commit data pack vào repo nộp bài** — repo nhóm chỉ chứa trích dẫn ngắn để minh hoạ (vài dòng); golden set trích từ data ghi rõ mã đoạn/mã hội thoại thay vì dán nguyên văn dài.
-4. **Cẩn trọng khi đưa data vào công cụ ngoài** — chỉ đưa phần tối thiểu cần cho việc đang làm; lưu ý API/công cụ free tier có thể dùng dữ liệu để huấn luyện (xem `02-guide.md` §3.4).
-5. **Không cố suy ngược danh tính** từ dữ liệu đã ẩn danh ([học viên], mã U/C/T/M).
-6. Sau sự kiện, **xoá các bản sao data pack** khỏi máy cá nhân và các công cụ đã upload nếu ban tổ chức yêu cầu.
+Kỳ vọng nhận được `status: online`. Nếu `active_provider` là `MOCK`, nghĩa là chưa có API key hợp lệ.
 
-Vi phạm được xử lý theo quy định của khoá và có thể ảnh hưởng trực tiếp đến điểm của nhóm.
+## Chạy frontend
+
+Mở terminal mới tại thư mục gốc:
+
+```powershell
+cd frontend
+npm ci
+npm run dev
+```
+
+Mở URL Vite hiển thị trong terminal, thường là:
+
+```text
+http://127.0.0.1:5173
+```
+
+Frontend đang hard-code API base là `http://localhost:8000`, nên cần chạy backend trước.
+
+## Chạy Streamlit prototype
+
+Nếu muốn xem prototype cũ:
+
+```powershell
+cd backend
+..\.venv\Scripts\streamlit.exe run app.py
+```
+
+Mở:
+
+```text
+http://localhost:8501
+```
+
+## Chạy đánh giá backend
+
+Golden set nằm tại `backend/eval/golden_set.json`.
+
+```powershell
+cd backend
+..\.venv\Scripts\python.exe eval_golden_set.py
+```
+
+Khi sửa logic trong `companion/`, hãy cập nhật golden set hoặc báo cáo trong `backend/eval/` nếu hành vi kỳ vọng thay đổi.
+
+## Lưu ý dữ liệu và bảo mật
+
+- Không commit API key trong `backend/.env`.
+- Không chia sẻ hoặc commit raw data trong `data/`.
+- Trace sinh ra trong `backend/runs/*.json`; chỉ force-add file mẫu khi cần nộp bằng chứng.
+- `VLEARN_TRANSCRIPT_PATH` trong `.env` có thể dùng để trỏ tới transcript thật nếu đường dẫn mặc định không đúng.
+
+## Lỗi thường gặp
+
+**Port 8000 đã được dùng**
+
+```powershell
+netstat -ano | Select-String ':8000'
+Stop-Process -Id <PID>
+```
+
+**pip đọc `requirements.txt` lỗi encoding trên Windows**
+
+```powershell
+$env:PYTHONUTF8='1'
+.\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+```
+
+**Frontend không gọi được API**
+
+Kiểm tra backend còn chạy không:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/health
+```
