@@ -62,12 +62,19 @@ def get_corpus():
 
 @st.cache_resource
 def get_provider():
-    if not os.getenv("GEMINI_API_KEY"):
-        return None
-    try:
-        return make_provider("gemini")
-    except Exception:
-        return None
+    default_name = os.getenv("DEFAULT_PROVIDER", "nvidia")
+    order = [default_name, "nvidia", "gemini", "openai", "openrouter", "anthropic"]
+    seen = set()
+    unique_order = [p for p in order if not (p in seen or seen.add(p))]
+
+    for name in unique_order:
+        key_name = f"{name.upper()}_API_KEY"
+        if os.getenv(key_name):
+            try:
+                return make_provider(name)
+            except Exception:
+                pass
+    return None
 
 
 CORPUS = get_corpus()
@@ -229,7 +236,11 @@ with right:
     with badge_left:
         st.caption(f"Quota Tutor trong ngày · {min(len(st.session_state['turns']), 15)} / 15 câu *(mock)*")
     with badge_right:
-        st.caption("🟢 Gemini" if PROVIDER else "🟡 MOCK — chưa có key")
+        if PROVIDER:
+            provider_name = PROVIDER.__class__.__name__.replace("Provider", "")
+            st.caption(f"🟢 {provider_name}")
+        else:
+            st.caption("🟡 MOCK — chưa có key")
 
     ctx = f"Ngữ cảnh: Slide trang {st.session_state['page']}"
     if st.session_state["selection"].strip():

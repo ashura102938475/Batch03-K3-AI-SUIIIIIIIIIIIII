@@ -121,10 +121,10 @@ def generate(query: str, scope_result, chunks: list[Chunk], *, provider=None, mo
         result["text"] = _no_grounding_message(scope_result)
         return result
 
-    if provider is None or not os.getenv("GEMINI_API_KEY"):
+    if provider is None:
         result["text"] = _mock_answer(query, chunks)
         result["mode"] = "mock"
-        result["error"] = "Chưa có GEMINI_API_KEY — đang chạy chế độ mock."
+        result["error"] = "Chưa có API key — đang chạy chế độ mock."
         return result
 
     messages = build_messages(query, scope_result, chunks)
