@@ -1353,3 +1353,51 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+/* Collapsed Workspace Layout & Floating Chat Trigger */
+.workspace.workspace--chat-collapsed {
+  grid-template-columns: 292px 1fr 0px;
+}
+
+.workspace.workspace--chat-collapsed .tutor-panel {
+  display: none !important;
+}
+
+.floating-chat-trigger {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 22px;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #0b4285 0%, #1d4ed8 100%);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 10px 25px -5px rgba(11, 66, 133, 0.4), 0 4px 10px -2px rgba(0, 0, 0, 0.1);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  animation: floatPulse 3s infinite ease-in-out;
+}
+
+.floating-chat-trigger:hover {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 15px 30px -5px rgba(11, 66, 133, 0.5), 0 6px 12px -2px rgba(0, 0, 0, 0.15);
+}
+
+.floating-chat-trigger:active {
+  transform: translateY(-1px) scale(0.98);
+}
+
+@keyframes floatPulse {
+  0%, 100% {
+    box-shadow: 0 10px 25px -5px rgba(11, 66, 133, 0.4), 0 4px 10px -2px rgba(0, 0, 0, 0.1);
+  }
+  50% {
+    box-shadow: 0 14px 30px -3px rgba(29, 78, 216, 0.55), 0 6px 14px -1px rgba(0, 0, 0, 0.15);
+  }
+}
