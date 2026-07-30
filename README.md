@@ -7,17 +7,22 @@
 
 ## Tài liệu nhóm
 
-Nhóm đang theo đề tài **VLearn Smart Contextual Companion**. Tài liệu dự án, canvas, context cho AI agent và phân tích data nằm trong [`docs/`](docs/README.md).
+Nhóm đang theo đề tài **VLearn Smart Contextual Companion**.
+- **AI SPEC chính thức:** [`spec.md`](spec.md)
+- **Tài liệu dự án, canvas, context & data analysis:** [`docs/`](docs/README.md)
+- **Đánh giá điểm yếu VLearn Tutor:** [`vlearn-tutor-diem-yeu.md`](vlearn-tutor-diem-yeu.md)
 
 ## Bắt đầu từ đâu?
 
-1. Đọc **`01-de-bai.md`** để chọn hướng và hiểu tiêu chí.
-2. Mở **`02-guide.md`** — hướng dẫn từng giai đoạn, đứng ở đâu đọc mục đó.
-3. Viết spec theo **`03-template-ai-spec.md`** — deliverable trung tâm của cả sự kiện.
-4. Đọc **`04-rubric.md`** ngay từ đầu — biết trước bài được chấm theo tiêu chí nào.
+1. Đọc **`spec.md`** — AI SPEC đã chốt theo chuẩn hackathon.
+2. Đọc **`01-de-bai.md`** & **`02-guide.md`** — hướng dẫn từng giai đoạn.
+3. Tham khảo **`03-template-ai-spec.md`** & **`04-rubric.md`** — tiêu chí chấm điểm và mốc xác minh.
 
 | File / thư mục | Nội dung |
 |---|---|
+| `spec.md` | **AI SPEC chính thức của nhóm** (9 phần đầy đủ) |
+| `docs/` | `cp1-canvas-and-slide-script.md`, `agent-context-...md`, `data-analysis-...md` |
+| `vlearn-tutor-diem-yeu.md` | Tổng hợp điểm yếu & cơ hội sản phẩm cho VLearn Tutor |
 | `01-de-bai.md` | Đề bài 3 hướng · 5 tiêu chí nghiệm thu · ràng buộc chung |
 | `02-guide.md` | Hướng dẫn 5 giai đoạn: khám phá → spec → build → đo & validate → demo |
 | `03-template-ai-spec.md` | Template AI Spec (nộp 23:59 ngày 1) |

@@ -85,13 +85,40 @@ Ví dụ evidence nên trích trong spec/slide:
 
 Core idea: trước khi trả lời, hệ thống phải hiểu user đang hỏi ở phạm vi nào.
 
-1. Detect intent: summary / explain / logistics / out-of-scope / prompt attack.
-2. Detect scope: selected text / current page / current document / whole session.
-3. Retrieve context theo scope đã chọn.
-4. Generate grounded response có citation.
-5. Low confidence hoặc out-of-scope -> hỏi lại, từ chối hữu ích, hoặc chuyển TA.
+Flow đề xuất:
+
+1. **Detect intent**
+   - summary
+   - explain
+   - logistics/download
+   - out-of-scope
+   - prompt attack / unsafe
+
+2. **Detect scope**
+   - selected text
+   - current page
+   - current document
+   - whole session / whole day
+
+3. **Retrieve context**
+   - Nếu selected text: dùng đoạn bôi đen + trang hiện tại.
+   - Nếu current page: dùng nội dung trang đó.
+   - Nếu current document: dùng outline/tóm tắt các trang trong file.
+   - Nếu whole session: dùng nhiều tài liệu cùng day + transcript liên quan nếu có.
+
+4. **Generate grounded response**
+   - Trả lời bằng tiếng Việt dễ hiểu.
+   - Có citation tới slide/trang hoặc mã transcript.
+   - Có phần "mình đang dựa trên nguồn nào".
+
+5. **Low confidence / out-of-scope**
+   - Hỏi lại nếu scope mơ hồ.
+   - Nói rõ thiếu dữ liệu nếu không đủ căn cứ.
+   - Chuyển TA nếu câu hỏi cần người thật hoặc vượt thẩm quyền.
 
 ## 11. Output Format Gợi Ý
+
+Khi user hỏi summary:
 
 ```text
 Phạm vi đã hiểu: [Trang hiện tại / Tài liệu hiện tại / Buổi học]
@@ -121,21 +148,34 @@ Hành động tiếp theo:
 
 ## 12. Automation
 
-**Conditional automation**
+Chọn mức: **Conditional automation**
 
+Lý do:
 - AI tự trả lời khi tìm được căn cứ và citation đủ tin cậy.
 - Nếu thiếu dữ liệu, scope mơ hồ, hoặc câu hỏi vượt phạm vi thì hỏi lại/chuyển TA.
 - Trả lời sai có thể làm học viên hiểu sai kiến thức, nên không nên automate tuyệt đối.
 
 ## 13. 4 Lớp Chỗ Khó
 
-1. **Nguồn sự thật**: AI có thể bịa nội dung nếu không lấy được đúng slide/transcript.
-2. **Mơ hồ / thiếu thông tin**: user nói "tóm tắt bài này" nhưng không rõ là trang, file hay buổi.
-3. **Ngoài phạm vi / thẩm quyền**: user hỏi tải file, deadline, API key, password, hoặc thông tin không nằm trong học liệu.
-4. **Đặc thù domain**: sai nội dung kiến thức làm học viên học sai, mất niềm tin, hoặc trả lời sai bài/lab.
+1. **Nguồn sự thật**
+   - AI có thể bịa nội dung nếu không lấy được đúng slide/transcript.
+   - Cần citation-first answering.
+
+2. **Mơ hồ / thiếu thông tin**
+   - User nói "tóm tắt bài này" nhưng không rõ là trang, file hay buổi.
+   - Hệ thống cần detect scope hoặc hỏi lại.
+
+3. **Ngoài phạm vi / thẩm quyền**
+   - User hỏi tải file, deadline, API key, password, hoặc thông tin không nằm trong học liệu.
+   - Hệ thống cần từ chối hữu ích hoặc chuyển TA.
+
+4. **Đặc thù domain**
+   - Sai nội dung kiến thức làm học viên học sai, mất niềm tin, hoặc trả lời sai bài/lab.
+   - Cần phân biệt "giải thích theo slide" và "bổ sung kiến thức nền ngoài slide".
 
 ## 14. Golden Set Gợi Ý
 
+Tối thiểu 20 case:
 - 8 case hỏi slide/trang hiện tại.
 - 6 case hỏi toàn tài liệu.
 - 4 case hỏi toàn buổi.
@@ -145,12 +185,60 @@ Nên có ít nhất 10 case lấy từ chatlog thật, ghi bằng `turn_id` thay
 
 ## 15. Quality Bar Gợi Ý
 
+Đạt khi:
 - >=80% case nhận diện đúng scope.
 - >=75% câu trả lời có citation đúng.
 - 0 case bịa nội dung ngoài tài liệu.
 - 100% low-confidence/out-of-scope case có hỏi lại, từ chối hữu ích, hoặc chuyển TA.
 
-## 16. Lưu Ý Cho AI Agent
+## 16. Prototype Demo Gợi Ý
+
+Demo case chính:
+
+User hỏi:
+> Tóm tắt bài buổi 6 cho tôi đi.
+
+Expected prototype behavior:
+- Scope detected: `Whole session - Day 6`
+- Intent detected: `summary`
+- Sources used: Day 6 document + transcript liên quan
+- Output: tổng quan, ý chính, keyword, phần dễ nhầm, citation
+- Nếu thiếu nguồn: hiển thị "Chưa đủ dữ liệu toàn buổi, bạn muốn tóm tắt tài liệu hiện tại hay chuyển TA?"
+
+Demo case lỗi:
+
+User hỏi:
+> Tải file PDF này cho tôi / cho tôi API key / deadline nộp bài ở đâu?
+
+Expected behavior:
+- Detect out-of-scope/logistics/security.
+- Không bịa.
+- Đưa lựa chọn hỏi TA hoặc chỉ tới nguồn chính thức nếu có.
+
+## 17. HAX/PAIR Principles Có Thể Dùng
+
+- Make clear what the system can do: hiện scope và nguồn đã dùng.
+- Make clear how well the system can do what it can do: hiện confidence.
+- Time services based on context: chỉ handoff TA khi cần.
+- Support efficient dismissal/correction: user có thể đổi scope từ page sang document/session.
+- Ground responses in user context: câu trả lời bám vào tài liệu đang học.
+
+## 18. Buzzwords Dùng Khi Pitch
+
+- Context-aware retrieval
+- Scope-aware answering
+- Citation-first response
+- Grounded learning copilot
+- Human-in-the-loop TA handoff
+- Trustworthy AI Tutor
+- Learning context understanding
+- Knowledge-augmented response
+
+## 19. Câu Pitch Chốt
+
+> VLearn Smart Contextual Companion giúp Tutor hiểu học viên đang hỏi về đoạn nào, trang nào, tài liệu nào hay cả buổi học nào, từ đó trả lời có căn cứ, trích dẫn đúng nguồn, bổ sung kiến thức nền khi cần, và biết chuyển TA khi không đủ chắc.
+
+## 20. Lưu Ý Cho AI Agent Khi Hỗ Trợ Nhóm
 
 - Luôn bám đề tài: context understanding + citation + confidence + TA handoff.
 - Không mở rộng sang chatbot tổng quát.
@@ -159,4 +247,3 @@ Nên có ít nhất 10 case lấy từ chatlog thật, ghi bằng `turn_id` thay
 - Khi tạo eval, phải có case cho 4 scope: selected text, current page, current document, whole session.
 - Khi dùng data pack, không copy nguyên văn dài; trích ngắn và ghi `turn_id`/mã transcript.
 - Khi không chắc, ghi là "cần validation thêm" thay vì khẳng định quá mức.
-
