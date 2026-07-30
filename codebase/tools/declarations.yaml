@@ -1,0 +1,48 @@
+tools:
+  - name: detect_scope
+    description: Detect intent and scope of student query (selected_text, current_page, current_document, whole_session, ambiguous, out_of_scope).
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: Student query text
+        current_day:
+          type: string
+          description: Current course day code (e.g. day01)
+        current_page:
+          type: integer
+          description: Current slide page number
+      required: [query]
+
+  - name: search_corpus
+    description: Search slides and transcripts filtered by target scope.
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: Student search query
+        scope:
+          type: string
+          description: Target scope (selected_text, current_page, current_document, whole_session)
+        current_day:
+          type: string
+          description: Course day code
+        current_page:
+          type: integer
+          description: Current page number
+      required: [query, scope]
+
+  - name: escalate_ta
+    description: Escalate unresolved question or low-confidence case to Human Teaching Assistant.
+    parameters:
+      type: object
+      properties:
+        reason:
+          type: string
+          description: Reason for escalation (e.g. out_of_scope, low_confidence, missing_data)
+        student_query:
+          type: string
+          description: Original student query
+      required: [reason, student_query]
