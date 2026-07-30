@@ -1,12 +1,18 @@
 {
   "dataset_id": "vlearn_smart_companion_golden_set_v1",
   "total_cases": 23,
+  "eval_timestamp": "2026-07-30 15:28:20",
   "active_provider": "NvidiaProvider",
   "intent_accuracy_percent": 91.3,
   "scope_accuracy_percent": 95.65,
   "clarification_accuracy_percent": 100.0,
   "citation_presence_rate_percent": 65.22,
-  "avg_latency_ms": 9284.52,
+  "latency": {
+    "avg_ms": 21077.35,
+    "p50_ms": 5632.65,
+    "p90_ms": 26938.38,
+    "p99_ms": 250790.1
+  },
   "category_breakdown": {
     "Local Scope (Current Page / Selection)": {
       "total": 4,
@@ -60,7 +66,7 @@
       "actual_clarification": false,
       "sources_cited": [],
       "mode": "rule",
-      "latency_ms": 0
+      "latency_ms": 0.08
     },
     {
       "id": "CASE-1.2",
@@ -78,7 +84,7 @@
         "Trang 9"
       ],
       "mode": "live",
-      "latency_ms": 12432
+      "latency_ms": 7143.03
     },
     {
       "id": "CASE-1.3",
@@ -96,7 +102,7 @@
         "Trang 63 · đoạn bôi đen"
       ],
       "mode": "live",
-      "latency_ms": 5116
+      "latency_ms": 6463.71
     },
     {
       "id": "CASE-1.4",
@@ -114,7 +120,7 @@
         "Trang 6"
       ],
       "mode": "live",
-      "latency_ms": 16254
+      "latency_ms": 4820.63
     },
     {
       "id": "CASE-2.1",
@@ -137,7 +143,7 @@
         "Trang 13"
       ],
       "mode": "live",
-      "latency_ms": 11259
+      "latency_ms": 8330.43
     },
     {
       "id": "CASE-2.2",
@@ -160,7 +166,7 @@
         "Trang 3"
       ],
       "mode": "live",
-      "latency_ms": 14475
+      "latency_ms": 8048.23
     },
     {
       "id": "CASE-2.3",
@@ -183,7 +189,7 @@
         "Trang 3"
       ],
       "mode": "live",
-      "latency_ms": 15562
+      "latency_ms": 28260.66
     },
     {
       "id": "CASE-2.4",
@@ -206,7 +212,7 @@
         "Trang 25"
       ],
       "mode": "live",
-      "latency_ms": 13743
+      "latency_ms": 27059.77
     },
     {
       "id": "CASE-3.1",
@@ -229,7 +235,7 @@
         "T05-006"
       ],
       "mode": "live",
-      "latency_ms": 30599
+      "latency_ms": 26452.8
     },
     {
       "id": "CASE-3.2",
@@ -252,7 +258,7 @@
         "T04-003"
       ],
       "mode": "live",
-      "latency_ms": 15891
+      "latency_ms": 16548.2
     },
     {
       "id": "CASE-3.3",
@@ -275,7 +281,7 @@
         "T03-083"
       ],
       "mode": "live",
-      "latency_ms": 13493
+      "latency_ms": 13822.97
     },
     {
       "id": "CASE-3.4",
@@ -298,7 +304,7 @@
         "T01-020"
       ],
       "mode": "live",
-      "latency_ms": 13315
+      "latency_ms": 313554.82
     },
     {
       "id": "CASE-4.1",
@@ -314,7 +320,7 @@
       "actual_clarification": false,
       "sources_cited": [],
       "mode": "rule",
-      "latency_ms": 0
+      "latency_ms": 0.07
     },
     {
       "id": "CASE-4.2",
@@ -330,7 +336,7 @@
       "actual_clarification": false,
       "sources_cited": [],
       "mode": "rule",
-      "latency_ms": 0
+      "latency_ms": 0.02
     },
     {
       "id": "CASE-4.3",
@@ -346,7 +352,7 @@
       "actual_clarification": false,
       "sources_cited": [],
       "mode": "rule",
-      "latency_ms": 0
+      "latency_ms": 0.02
     },
     {
       "id": "CASE-4.4",
@@ -364,7 +370,7 @@
         "Trang 1"
       ],
       "mode": "live",
-      "latency_ms": 5506
+      "latency_ms": 3990.49
     },
     {
       "id": "CASE-5.1",
@@ -380,7 +386,7 @@
       "actual_clarification": true,
       "sources_cited": [],
       "mode": "rule",
-      "latency_ms": 0
+      "latency_ms": 0.11
     },
     {
       "id": "CASE-5.2",
@@ -396,7 +402,7 @@
       "actual_clarification": true,
       "sources_cited": [],
       "mode": "rule",
-      "latency_ms": 0
+      "latency_ms": 0.1
     },
     {
       "id": "CASE-5.3",
@@ -412,7 +418,7 @@
       "actual_clarification": true,
       "sources_cited": [],
       "mode": "rule",
-      "latency_ms": 0
+      "latency_ms": 0.06
     },
     {
       "id": "CASE-5.4",
@@ -428,7 +434,7 @@
       "actual_clarification": true,
       "sources_cited": [],
       "mode": "rule",
-      "latency_ms": 0
+      "latency_ms": 0.07
     },
     {
       "id": "CASE-6.1",
@@ -446,7 +452,7 @@
         "Trang 1"
       ],
       "mode": "live",
-      "latency_ms": 5855
+      "latency_ms": 5632.65
     },
     {
       "id": "CASE-6.2",
@@ -464,7 +470,7 @@
         "Trang 1"
       ],
       "mode": "live",
-      "latency_ms": 30219
+      "latency_ms": 9831.54
     },
     {
       "id": "CASE-6.3",
@@ -487,7 +493,7 @@
         "Trang 17"
       ],
       "mode": "live",
-      "latency_ms": 9825
+      "latency_ms": 4818.54
     }
   ]
 }
