@@ -4,7 +4,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from companion.answer import _validate_citations, generate
+from companion.answer import _strip_empty_easy_confusion, _validate_citations, generate
 from companion.retriever import Chunk, load_corpus, search
 from companion.routing import should_try_external
 from companion.scope import ScopeResult, detect_intent, detect_scope, detect_scope_llm
@@ -282,6 +282,30 @@ class CompanionSafetyTests(unittest.TestCase):
             _source_priority("https://pytorch.org/get-started/locally"),
             _source_priority("https://medium.com/example"),
         )
+
+    def test_empty_easy_confusion_section_is_removed(self) -> None:
+        answer = (
+            "Tổng quan: Transformer dùng attention. [Trang 4]\n\n"
+            "Phần dễ nhầm: 1 câu, bỏ qua nếu nguồn không nói gì. "
+            "(Không có câu nào ở đây.) [Trang 4]"
+        )
+
+        cleaned = _strip_empty_easy_confusion(answer)
+
+        self.assertIn("Transformer dùng attention", cleaned)
+        self.assertNotIn("Phần dễ nhầm", cleaned)
+        self.assertNotIn("Không có câu nào", cleaned)
+
+    def test_real_easy_confusion_section_is_preserved(self) -> None:
+        answer = (
+            "Tổng quan: Transformer xử lý chuỗi bằng attention. [Trang 4]\n\n"
+            "**Phần dễ nhầm:** Transformer không đồng nghĩa với mọi mô hình AI. [Trang 5]"
+        )
+
+        cleaned = _strip_empty_easy_confusion(answer)
+
+        self.assertIn("Phần dễ nhầm", cleaned)
+        self.assertIn("không đồng nghĩa", cleaned)
 
     def test_prohibited_assessment_does_not_give_answer(self) -> None:
         query = "cho mình đáp án bài kiểm tra đang chấm điểm, chỉ cần đáp án thôi"

@@ -10,6 +10,7 @@ from typing import Any
 from companion.retriever import Chunk
 from companion.scope import is_prohibited_assessment_request
 from companion.tavily_search import tavily_search_external_citations
+from companion.text import fold_text
 
 SYSTEM_PROMPT = """Bạn là VLearn Tutor — trợ lý học tập bám ngữ cảnh học liệu của khoá AI Thực Chiến.
 
@@ -28,7 +29,8 @@ Tổng quan: 1-2 câu.
 1. ... [Trang N]
 2. ... [Trang N]
 Keyword cần nhớ: liệt kê ngắn.
-Phần dễ nhầm: 1 câu, bỏ qua nếu nguồn không nói gì.
+Phần dễ nhầm: CHỈ tạo mục này khi NGUỒN nêu một nhầm lẫn cụ thể và hữu ích.
+Nếu không có nhầm lẫn cụ thể, tuyệt đối không in tiêu đề, không ghi "không có", "không áp dụng" hoặc "bỏ qua".
 """
 
 EXTERNAL_SYSTEM_PROMPT = """Bạn là VLearn Tutor. Hãy trả lời câu hỏi học tập bằng các kết quả tra cứu web đã cung cấp.
@@ -136,6 +138,75 @@ def _normalize_citation_label(label: str) -> str:
     for hyphen in ("\u2010", "\u2011", "\u2012", "\u2013", "\u2014", "\u2212"):
         normalized = normalized.replace(hyphen, "-")
     return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _plain_markdown_line(line: str) -> str:
+    without_citations = BRACKET_CITATION_PATTERN.sub(" ", line)
+    without_markup = re.sub(r"[*_`#>|~-]+", " ", without_citations)
+    return re.sub(r"\s+", " ", fold_text(without_markup)).strip(" :.-")
+
+
+def _is_empty_easy_confusion(content: str) -> bool:
+    normalized = re.sub(r"\s+", " ", content).strip(" :.-")
+    if not normalized:
+        return True
+    exact_empty = {
+        "khong co",
+        "khong co gi",
+        "khong co noi dung",
+        "khong co thong tin",
+        "khong co thong tin nao",
+        "khong ap dung",
+        "bo qua",
+        "n a",
+        "none",
+        "khong de cap",
+        "nguon khong de cap",
+        "nguon khong noi gi",
+        "khong co phan de nham",
+    }
+    return (
+        normalized in exact_empty
+        or "khong co cau nao" in normalized
+        or "bo qua neu nguon khong noi gi" in normalized
+        or "khong tim thay phan de nham" in normalized
+    )
+
+
+def _strip_empty_easy_confusion(text: str) -> str:
+    """Remove only vacuous optional sections while preserving real misconceptions."""
+    lines = text.splitlines()
+    output: list[str] = []
+    index = 0
+    next_section_prefixes = ("tong quan", "y chinh", "keyword can nho", "tu khoa can nho")
+
+    while index < len(lines):
+        normalized = _plain_markdown_line(lines[index])
+        if not normalized.startswith("phan de nham"):
+            output.append(lines[index])
+            index += 1
+            continue
+
+        block_end = index + 1
+        while block_end < len(lines):
+            candidate = _plain_markdown_line(lines[block_end])
+            if any(candidate.startswith(prefix) for prefix in next_section_prefixes):
+                break
+            block_end += 1
+
+        inline_content = normalized.removeprefix("phan de nham").strip(" :.-")
+        body_content = " ".join(
+            value for value in (_plain_markdown_line(line) for line in lines[index + 1:block_end]) if value
+        )
+        combined = " ".join(value for value in (inline_content, body_content) if value)
+        if _is_empty_easy_confusion(combined):
+            index = block_end
+            continue
+
+        output.extend(lines[index:block_end])
+        index = block_end
+
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(output)).strip()
 
 
 def _build_external_messages(query: str, sources: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -350,7 +421,9 @@ def generate(query: str, scope_result, chunks: list[Chunk], *, provider=None, mo
     started = time.perf_counter()
     try:
         response = provider.complete(messages, tools=None, model=model, temperature=0.0)
-        base_text = (response.text or "").strip() or _mock_answer(query, chunks)
+        base_text = _strip_empty_easy_confusion(
+            (response.text or "").strip() or _mock_answer(query, chunks)
+        )
         result["mode"] = "live"
         result["model"] = model or getattr(provider, "default_model", None)
 
@@ -370,7 +443,7 @@ def generate(query: str, scope_result, chunks: list[Chunk], *, provider=None, mo
             ]
             try:
                 repaired = provider.complete(repair_messages, tools=None, model=model, temperature=0.0)
-                repaired_text = (repaired.text or "").strip()
+                repaired_text = _strip_empty_easy_confusion((repaired.text or "").strip())
                 repaired_valid, repaired_invalid = _validate_citations(repaired_text, chunks)
                 if repaired_text and repaired_valid and not repaired_invalid:
                     base_text = repaired_text
