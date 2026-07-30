@@ -553,15 +553,6 @@ function App() {
             </button>
           </div>
 
-          <div className="quota">
-            <div>
-              <span>Quota Tutor trong ngày</span>
-              <strong>{messages.filter((item) => item.role === "user").length}/15 câu</strong>
-            </div>
-            <div className="quota-track">
-              <div style={{ width: `${Math.min(progress, 100)}%` }} />
-            </div>
-          </div>
 
           <div className="scenario-row">
             {demoPrompts.map((prompt) => (
