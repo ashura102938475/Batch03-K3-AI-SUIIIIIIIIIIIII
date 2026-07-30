@@ -392,9 +392,7 @@ function App() {
             </strong>
           </div>
         </div>
-        <div className="connection-badge">
-          <span>⚡ FastAPI Live Server</span>
-        </div>
+
       </header>
 
       <main className="workspace">
@@ -654,11 +652,7 @@ function App() {
             </div>
           </form>
 
-          <div className="guardrail-footer">
-            <Target size={15} />
-            <span>Kết nối FastAPI Live Server at http://localhost:8000</span>
-            <CircleHelp size={15} />
-          </div>
+
         </aside>
       </main>
     </div>
