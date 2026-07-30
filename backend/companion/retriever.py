@@ -4,10 +4,9 @@ Phỏng theo `tools/policy/tool.py` của Day04 Lab: parse YAML frontmatter, chi
 theo heading `## `, chấm điểm bằng term-overlap có trọng số, và giữ nguyên trust
 boundary tách dòng đáng ngờ ra khỏi phần facts.
 
-Hai nguồn:
-  - Slide  : `corpus/*.md`  (slide GIẢ tự viết — xem corpus/README.md)
-  - Transcript: đọc từ data pack của khoá qua đường dẫn tương đối, KHÔNG copy vào
-    codebase/ — luật bảo mật data pack cấm commit data vào repo nộp bài.
+Nguồn:
+  - Slide     : PDF (`*.pdf`) & Markdown (`*.md`) trong `backend/corpus/`
+  - Transcript: `transcript-*.md` trong `backend/corpus/` hoặc từ data pack.
 """
 from __future__ import annotations
 
@@ -25,8 +24,6 @@ ROOT = Path(__file__).resolve().parents[1]
 CORPUS_DIR = ROOT / "corpus"
 DEFAULT_TRANSCRIPT = ROOT.parent / "data" / "vlearn-pack" / "transcript" / "transcript-04-clean.md"
 
-# Transcript nào thuộc buổi nào — theo bảng ánh xạ trong
-# data/vlearn-pack/transcript/README.md (định vị buổi là suy đoán từ nội dung).
 TRANSCRIPT_DAY = "day01"
 TRANSCRIPT_CODE_PATTERN = re.compile(r"\[(T\d{2}-\d{3})\]")
 
@@ -48,11 +45,6 @@ class Chunk:
 
 
 def _split_trusted(text: str) -> tuple[str, list[str]]:
-    """Tách dòng có mùi chỉ thị ra khỏi phần facts.
-
-    Nội dung học liệu là dữ liệu, không phải mệnh lệnh. Chatlog thật có T0582 (đòi
-    base64 toàn bộ nội dung) và T0794 (đòi API key) — lớp chỗ khó ③.
-    """
     facts, untrusted = [], []
     for line in text.splitlines():
         stripped = line.strip()
@@ -75,15 +67,18 @@ def _parse_frontmatter(raw: str) -> tuple[dict[str, Any], str]:
 
 
 def load_slides() -> list[Chunk]:
-    """Mỗi heading `## Trang N` trong corpus/*.md là một chunk."""
+    """Load slides from Markdown and PDF files in CORPUS_DIR."""
     chunks: list[Chunk] = []
     if not CORPUS_DIR.exists():
         return chunks
 
+    # 1. Parse markdown slides
     for path in sorted(CORPUS_DIR.glob("*.md")):
+        if path.name.startswith("transcript") or path.name.lower() == "readme.md":
+            continue
         meta, body = _parse_frontmatter(path.read_text(encoding="utf-8"))
         if not meta.get("day"):
-            continue  # corpus/README.md không có frontmatter -> bỏ qua
+            continue
         day = str(meta["day"])
         doc_id = str(meta.get("doc_id") or path.stem)
         title = str(meta.get("title") or path.stem)
@@ -113,6 +108,29 @@ def load_slides() -> list[Chunk]:
             else:
                 buffer.append(line)
         flush()
+
+    # 2. Parse PDF slides
+    for path in sorted(CORPUS_DIR.glob("*.pdf")):
+        doc_id = path.name
+        title = path.stem
+        day_match = re.search(r"d(\d+)", path.name, re.IGNORECASE)
+        day = f"day0{day_match.group(1)}" if day_match else "day01"
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(path)
+            for page_idx, page in enumerate(reader.pages, start=1):
+                raw_text = page.extract_text() or ""
+                facts, untrusted = _split_trusted(raw_text)
+                if not facts.strip():
+                    continue
+                chunks.append(Chunk(
+                    chunk_id=f"{doc_id}#p{page_idx}",
+                    day=day, doc_id=doc_id, title=title, page=page_idx,
+                    cite=f"Trang {page_idx}", text=facts, kind="slide", untrusted=untrusted,
+                ))
+        except Exception:
+            pass
+
     return chunks
 
 
@@ -122,36 +140,40 @@ def transcript_path() -> Path:
 
 
 def load_transcript() -> list[Chunk]:
-    """Đọc transcript thật từ data pack. Thiếu file -> trả rỗng, không crash."""
-    path = transcript_path()
-    if not path.exists():
-        return []
-
+    """Đọc tất cả transcript trong CORPUS_DIR hoặc transcript_path()."""
     chunks: list[Chunk] = []
-    current_code: str | None = None
-    buffer: list[str] = []
+    paths: list[Path] = sorted(CORPUS_DIR.glob("transcript-*.md"))
+    if not paths and transcript_path().exists():
+        paths = [transcript_path()]
 
-    def flush() -> None:
-        if not current_code or not buffer:
-            return
-        facts, untrusted = _split_trusted("\n".join(buffer))
-        if not facts:
-            return
-        chunks.append(Chunk(
-            chunk_id=current_code, day=TRANSCRIPT_DAY, doc_id="transcript-04-clean.md",
-            title="Transcript bài giảng", page=None, cite=current_code,
-            text=facts, kind="transcript", untrusted=untrusted,
-        ))
+    for path in paths:
+        day_match = re.search(r"transcript-0?(\d+)", path.name)
+        day_code = f"day0{day_match.group(1)}" if day_match else TRANSCRIPT_DAY
 
-    for line in path.read_text(encoding="utf-8").splitlines():
-        match = TRANSCRIPT_CODE_PATTERN.search(line)
-        if match:
-            flush()
-            current_code = match.group(1)
-            buffer = [TRANSCRIPT_CODE_PATTERN.sub("", line).strip()]
-        elif current_code:
-            buffer.append(line)
-    flush()
+        current_code: str | None = None
+        buffer: list[str] = []
+
+        def flush() -> None:
+            if not current_code or not buffer:
+                return
+            facts, untrusted = _split_trusted("\n".join(buffer))
+            if not facts:
+                return
+            chunks.append(Chunk(
+                chunk_id=current_code, day=day_code, doc_id=path.name,
+                title=f"Transcript {day_code.upper()}", page=None, cite=current_code,
+                text=facts, kind="transcript", untrusted=untrusted,
+            ))
+
+        for line in path.read_text(encoding="utf-8").splitlines():
+            match = TRANSCRIPT_CODE_PATTERN.search(line)
+            if match:
+                flush()
+                current_code = match.group(1)
+                buffer = [TRANSCRIPT_CODE_PATTERN.sub("", line).strip()]
+            elif current_code:
+                buffer.append(line)
+        flush()
     return chunks
 
 
@@ -164,11 +186,6 @@ def available_days(chunks: list[Chunk]) -> set[str]:
 
 
 def search(query: str, scope_result, chunks: list[Chunk], *, selection: str = "", top_k: int = 6) -> list[Chunk]:
-    """Lọc theo phạm vi TRƯỚC, chấm điểm SAU.
-
-    Lọc trước là điểm khác biệt của lát cắt này: tutor hiện tại retrieve trên toàn
-    index rồi cite lung tung — 39/155 lượt summary cite trang không liên quan.
-    """
     scope = scope_result.scope
 
     if scope == "out_of_scope":
@@ -206,8 +223,6 @@ def search(query: str, scope_result, chunks: list[Chunk], *, selection: str = ""
         body_terms = terms(chunk.text)
         chunk.score = len(query_terms & body_terms) + 3 * len(query_terms & title_terms)
 
-    # Hỏi chung chung ("tóm tắt trang này") thì gần như không term nào khớp — vẫn phải
-    # trả nội dung trong phạm vi, nếu không sẽ tái hiện đúng lỗi "không tìm thấy".
     if all(chunk.score == 0 for chunk in pool):
         ordered = sorted(pool, key=lambda c: (c.page is None, c.page or 0))
     else:

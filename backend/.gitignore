@@ -2,5 +2,10 @@
 .venv/
 __pycache__/
 *.pyc
+
+# Data pack safety — do not commit raw data pack files
+corpus/*.pdf
+corpus/transcript-*.md
+
 # Trace tự sinh — giữ tay vài file mẫu bằng `git add -f runs/<file>.json` để làm evidence
 runs/*.json
