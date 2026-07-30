@@ -5,6 +5,10 @@
 - Thời lượng: **1,5 ngày** (một ngày build + một buổi demo)
 - Nhóm: **4-5 người** · zone tối đa 5 nhóm · thi theo lớp
 
+## Tài liệu nhóm
+
+Nhóm đang theo đề tài **VLearn Smart Contextual Companion**. Tài liệu dự án, canvas, context cho AI agent và phân tích data nằm trong [`docs/`](docs/README.md).
+
 ## Bắt đầu từ đâu?
 
 1. Đọc **`01-de-bai.md`** để chọn hướng và hiểu tiêu chí.
