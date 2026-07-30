@@ -37,3 +37,8 @@ scratch/
 node_modules/
 dist/
 build/
+
+# BMad & Session files
+.bmad/
+.memlog.md
+.memlog

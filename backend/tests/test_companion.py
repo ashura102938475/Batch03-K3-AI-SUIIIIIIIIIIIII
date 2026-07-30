@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 from companion.answer import _validate_citations, generate
 from companion.retriever import Chunk, load_corpus, search
-from companion.scope import ScopeResult, detect_intent, detect_scope
+from companion.scope import ScopeResult, detect_intent, detect_scope, detect_scope_llm
 
 
 class CompanionCorpusTests(unittest.TestCase):
@@ -69,6 +69,41 @@ class CompanionCorpusTests(unittest.TestCase):
 
 
 class CompanionSafetyTests(unittest.TestCase):
+    def test_optional_llm_scope_classifier_parses_fenced_json(self) -> None:
+        class FencedJsonProvider:
+            def complete(self, messages, tools=None, model=None, temperature=0.0):
+                return SimpleNamespace(
+                    text='```json\n{"scope":"current_document","reason":"Người học hỏi cả tài liệu."}\n```'
+                )
+
+        scope = detect_scope_llm(
+            "tóm tắt tài liệu giúp mình",
+            has_selection=False,
+            current_day="day02",
+            current_page=6,
+            provider=FencedJsonProvider(),
+        )
+
+        self.assertEqual("current_document", scope.scope)
+        self.assertEqual("day02", scope.target_day)
+        self.assertIsNone(scope.target_page)
+
+    def test_optional_llm_scope_classifier_falls_back_on_provider_error(self) -> None:
+        class FailingProvider:
+            def complete(self, messages, tools=None, model=None, temperature=0.0):
+                raise RuntimeError("provider unavailable")
+
+        scope = detect_scope_llm(
+            "Tóm tắt slide này",
+            has_selection=False,
+            current_day="day01",
+            current_page=8,
+            provider=FailingProvider(),
+        )
+
+        self.assertEqual("current_page", scope.scope)
+        self.assertEqual(8, scope.target_page)
+
     def test_missing_citation_is_repaired_once(self) -> None:
         class RepairingProvider:
             default_model = "test-model"

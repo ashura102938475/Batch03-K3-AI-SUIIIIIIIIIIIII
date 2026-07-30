@@ -172,6 +172,7 @@ class TAHandoffRequest(BaseModel):
     reason: str = Field(..., min_length=1)
     student_query: str = Field(..., min_length=1)
     current_day: str = "day01"
+    current_page: int = Field(1, ge=1)
 
 
 class TAHandoffResponse(BaseModel):
@@ -180,6 +181,8 @@ class TAHandoffResponse(BaseModel):
     delivery_status: str
     reason: str
     student_query: str
+    current_day: str
+    current_page: int
     message: str
 
 
@@ -386,6 +389,7 @@ def escalate_ta_api(req: TAHandoffRequest) -> TAHandoffResponse:
         reason=req.reason,
         student_query=req.student_query,
         current_day=req.current_day,
+        current_page=req.current_page,
     )
     return TAHandoffResponse(
         status=res["status"],
@@ -393,6 +397,8 @@ def escalate_ta_api(req: TAHandoffRequest) -> TAHandoffResponse:
         delivery_status=res["delivery_status"],
         reason=req.reason,
         student_query=req.student_query,
+        current_day=req.current_day,
+        current_page=req.current_page,
         message=res["message"],
     )
 

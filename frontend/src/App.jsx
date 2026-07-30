@@ -321,6 +321,8 @@ function App() {
   const [pdfPageWidth, setPdfPageWidth] = useState(0);
   const [question, setQuestion] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [draftTicket, setDraftTicket] = useState(null);
+  const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
   const wheelNavRef = useRef(0);
   const pdfFrameRef = useRef(null);
   const [messages, setMessages] = useState([
@@ -463,6 +465,7 @@ function App() {
     }
   }
 
+
   function clampSelectionMenuPosition(clientX, clientY) {
     const menuWidth = 320;
     const menuHeight = 150;
@@ -550,24 +553,44 @@ function App() {
     goToPage(page + (event.deltaY > 0 ? 1 : -1));
   }
 
-  async function escalateToTA(userQuery) {
+  function openDraftTicket(userQuery, reason = "Hỗ trợ học viên") {
+    setDraftTicket({
+      student_query: userQuery || "Yêu cầu hỗ trợ từ học viên",
+      reason: reason,
+      current_day: doc?.dayId || "day01",
+      current_page: page,
+      note: ""
+    });
+  }
+
+  async function submitDraftTicket() {
+    if (!draftTicket) return;
+    setIsSubmittingTicket(true);
     try {
       const resp = await fetch(`${API_BASE_URL}/api/v1/escalate-ta`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          reason: "user_requested",
-          student_query: userQuery || "Yêu cầu hỗ trợ từ học viên",
-          current_day: doc.dayId || "day01"
+          reason: `${draftTicket.reason}${draftTicket.note ? ` | Note: ${draftTicket.note}` : ""}`,
+          student_query: draftTicket.student_query,
+          current_day: draftTicket.current_day,
+          current_page: draftTicket.current_page
         })
       });
+      if (!resp.ok) throw new Error(`TA handoff failed: ${resp.status}`);
       const data = await resp.json();
-      alert(`🚀 ${data.message}\n(Đã gửi thông báo đẩy tới Kênh Telegram của TA!)`);
+      alert(data.message);
+      setDraftTicket(null);
     } catch (e) {
-      alert("Đã ghi nhận yêu cầu chuyển TA.");
+      alert("Chưa thể gửi yêu cầu cho TA. Vui lòng kiểm tra kết nối và thử lại.");
+    } finally {
+      setIsSubmittingTicket(false);
     }
   }
 
+  async function escalateToTA(userQuery) {
+    openDraftTicket(userQuery);
+  }
   function askAboutSelection() {
     if (!selectedText.trim()) return;
     ask(`Giải thích đoạn bôi đen này: ${selectedText}`, "selected_text");
@@ -951,6 +974,84 @@ function App() {
           ) : null}
         </div>
       ) : null}
+
+      {draftTicket && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(4px)",
+          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000
+        }}>
+          <div style={{
+            background: "#1e293b", border: "1px solid #334155", borderRadius: "12px",
+            padding: "24px", width: "90%", maxWidth: "480px", color: "#f8fafc",
+            boxShadow: "0 20px 25px -5px rgba(0,0,0,0.5)"
+          }}>
+            <h3 style={{ margin: "0 0 16px 0", fontSize: "18px", color: "#38bdf8", display: "flex", alignItems: "center", gap: "8px" }}>
+              📝 Draft Ticket Hỗ Trợ TA (Human-in-the-loop)
+            </h3>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "14px" }}>
+              <div>
+                <label style={{ color: "#94a3b8", fontSize: "12px", fontWeight: "600" }}>CÂU HỎI CỦA HỌC VIÊN</label>
+                <input
+                  type="text"
+                  value={draftTicket.student_query}
+                  onChange={(e) => setDraftTicket({ ...draftTicket, student_query: e.target.value })}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", background: "#0f172a", border: "1px solid #334155", color: "#fff", marginTop: "4px" }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: "12px" }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ color: "#94a3b8", fontSize: "12px", fontWeight: "600" }}>BUỔI HỌC (DAY)</label>
+                  <input
+                    type="text"
+                    value={draftTicket.current_day}
+                    readOnly
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", background: "#0f172a", border: "1px solid #334155", color: "#94a3b8", marginTop: "4px" }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ color: "#94a3b8", fontSize: "12px", fontWeight: "600" }}>TRANG SLIDE</label>
+                  <input
+                    type="text"
+                    value={`Trang ${draftTicket.current_page}`}
+                    readOnly
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", background: "#0f172a", border: "1px solid #334155", color: "#94a3b8", marginTop: "4px" }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ color: "#94a3b8", fontSize: "12px", fontWeight: "600" }}>GHI CHÚ THÊM CHO TA (TÙY CHỌN)</label>
+                <textarea
+                  rows={3}
+                  value={draftTicket.note}
+                  onChange={(e) => setDraftTicket({ ...draftTicket, note: e.target.value })}
+                  placeholder="Gõ thêm thông báo hoặc câu hỏi cụ thể cho TA..."
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", background: "#0f172a", border: "1px solid #334155", color: "#fff", marginTop: "4px", resize: "none" }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "20px" }}>
+              <button
+                onClick={() => setDraftTicket(null)}
+                style={{ background: "#334155", color: "#cbd5e1", border: "none", padding: "8px 16px", borderRadius: "6px", fontWeight: "600", cursor: "pointer" }}
+              >
+                Hủy
+              </button>
+              <button
+                onClick={submitDraftTicket}
+                disabled={isSubmittingTicket}
+                style={{ background: "#22c55e", color: "#fff", border: "none", padding: "8px 16px", borderRadius: "6px", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
+              >
+                🚀 {isSubmittingTicket ? "Đang gửi..." : "Gửi cho TA"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -79,29 +79,29 @@ Loại: [x] Tối ưu tính năng có sẵn  [ ] Tính năng mới
 
 ### A. Core Capabilities (Năng Lực Cốt Lõi)
 
-- **CAP-1: Scope & Intent Detection**  
-  - **Intent (WHAT):** Phân loại ý định người học (tóm tắt, giải thích, hỏi logistics, out-of-scope, prompt attack) và xác định đúng 1 trong 4 phạm vi truy xuất (`selected_text`, `current_page`, `current_document`, `whole_session`) hoặc cờ `ambiguous` hoàn toàn theo luật deterministic (rule-based).  
-  - **Success Signal:** Đạt tỷ lệ nhận diện đúng scope $\ge 80\%$ trên bộ kiểm thử Golden Set 20 case, 0 tốn lời gọi LLM.
+- **CAP-1: Scope & Intent Detection**
+  - **Intent (WHAT):** Phân loại ý định người học (tóm tắt, giải thích, hỏi logistics, out-of-scope, prompt attack) và xác định đúng 1 trong 4 phạm vi truy xuất (`selected_text`, `current_page`, `current_document`, `whole_session`) hoặc cờ `ambiguous`. Luồng mặc định dùng luật deterministic; có thể bật fast tier `google/gemma-3-1b-it` qua `NVIDIA_FAST_MODEL`, luôn fallback về luật khi API lỗi hoặc hết quota.
+  - **Success Signal:** Đạt tỷ lệ nhận diện đúng scope $\ge 90\%$ trên Golden Set, xử lý được câu hỏi teencode/khẩu ngữ và không làm hỏng luồng khi model phụ trợ không khả dụng.
 
-- **CAP-2: Scope-Aware Grounded Retrieval**  
-  - **Intent (WHAT):** Lọc trước danh sách đoạn văn bản slide PDF và transcript theo đúng phạm vi đã nhận diện trước khi chấm điểm thuật toán term-overlap có trọng số.  
-  - **Success Signal:** 0% chunk ngoài phạm vi bị lọt vào ngữ cảnh sinh câu trả lời; đạt độ chính xác citation $\ge 75\%$ khớp số trang/mã transcript.
+- **CAP-2: Scope-Aware Grounded Retrieval**
+  - **Intent (WHAT):** Lọc trước corpus slide PDF và transcript theo đúng scope, sau đó lấy các đoạn liên quan và bổ sung coverage sampling cho yêu cầu tóm tắt phạm vi rộng trước khi gửi sang model sinh câu trả lời.
+  - **Success Signal:** 0% chunk ngoài phạm vi bị lọt; đạt độ chính xác citation $\ge 85\%$ khớp số trang/mã transcript.
 
 - **CAP-3: Citation-First Grounded Answer Generation**  
   - **Intent (WHAT):** Sinh câu trả lời cấu trúc chuẩn tiếng Việt (Tổng quan, Ý chính có citation `[Trang N]` / `[Txx-NNN]`, Keyword, Phần dễ nhầm) chỉ sử dụng duy nhất thông tin từ nguồn đã retrieve.  
   - **Success Signal:** 0% bịa đặt thông tin (Hallucination rate = 0%); 100% các ý chính có trích dẫn nguồn hợp lệ.
 
-- **CAP-4: Ambiguity Clarification & User Scope Overrides (HAX G10)**  
-  - **Intent (WHAT):** Hiển thị bộ 3 nút chọn phạm vi (`Trang hiện tại`, `Cả tài liệu`, `Cả buổi`) khi câu hỏi mơ hồ ("Tóm tắt bài này đi"), cho phép học viên chủ động sửa scope mà không phải gõ lại câu hỏi.  
+- **CAP-4: Ambiguity Clarification & User Scope Overrides (HAX G10)**
+  - **Intent (WHAT):** Hiển thị bộ 3 nút chọn phạm vi (`Trang hiện tại`, `Cả tài liệu`, `Cả buổi`) khi câu hỏi mơ hồ ("Tóm tắt bài này đi"), cho phép học viên chủ động sửa scope và thực thi sinh lại câu trả lời trực tiếp.
   - **Success Signal:** 100% case mơ hồ trả về giao diện hỏi lại; cập nhật ngay câu trả lời theo scope mới trong $<2$ giây khi học viên chọn lại.
 
-- **CAP-5: Out-of-Scope Protection & Conditional TA Handoff**  
-  - **Intent (WHAT):** Từ chối an toàn các yêu cầu ngoài phạm vi học liệu (mật khẩu, API key, prompt injection) và đề xuất nút "Chuyển TA" khi dữ liệu học liệu bị thiếu hoặc độ tin cậy thấp.  
-  - **Success Signal:** 100% case ngoài phạm vi hoặc thiếu dữ liệu đưa ra câu trả lời từ chối hữu ích kèm nút chuyển TA, không thực hiện lệnh độc hại.
+- **CAP-5: Out-of-Scope Protection & Conditional TA Handoff**
+  - **Intent (WHAT):** Từ chối an toàn các yêu cầu ngoài phạm vi học liệu và hiển thị **Draft Ticket Modal** cho phép học viên xem lại/chỉnh sửa câu hỏi + context trước khi gửi hỗ trợ cho TA.
+  - **Success Signal:** 100% case ngoài phạm vi hoặc thiếu dữ liệu đưa ra câu trả lời từ chối hữu ích kèm Draft Ticket Modal chuyển TA.
 
 ### B. Constraints (Ràng Buộc Thiết Kế & Kiến Trúc)
 
-1. **Zero LLM Call for Decision Steps:** Nhận diện Intent, Scope, và từ chối ngoài phạm vi KHÔNG được tốn lời gọi LLM (Rule-based 100% deterministic).
+1. **NVIDIA NIM API & Model Selection:** Dùng `nvidia/nemotron-3-nano-30b-a3b` để sinh câu trả lời grounded; fast classifier tùy chọn dùng `google/gemma-3-1b-it`. Cả hai đi qua interface chuẩn `complete()` và có cấu hình riêng bằng biến môi trường.
 2. **Data Confidentiality & Privacy:** Không commit dữ liệu thô của data pack (`data/vlearn-pack/`) vào git repo; chỉ trích dẫn ngắn qua `turn_id` / mã `[Txx-NNN]`.
 3. **Graceful Fallback & Offline Mocking:** Khi không có API key hoặc provider bị nghẽn/hết quota, hệ thống tự chuyển sang chế độ Mock với badge `🟡 MOCK` mà không làm crash ứng dụng.
 4. **Provider Abstraction:** Hỗ trợ đa dạng provider (NVIDIA NIM/API Catalog, Gemini, OpenAI, OpenRouter) thông qua interface chuẩn `complete()`.
@@ -119,7 +119,7 @@ Loại: [x] Tối ưu tính năng có sẵn  [ ] Tính năng mới
   - *Phần thật:* Pipeline Scope Detection (Intent & Scope Classifier), Grounded RAG Retrieval từ slide PDF & transcript text, LLM Generation với Citation & Confidence score, và UI Sidebar tương tác thật.
 
 - **Automation:** `[x] conditional`  
-  - *Lý do theo cost-of-error:* Chọn **Conditional Automation**: AI tự trả lời khi xác định được căn cứ và citation đủ tin cậy (High confidence); nếu thiếu dữ liệu, scope mơ hồ hoặc out-of-scope -> chủ động hỏi lại hoặc hỗ trợ nút **Chuyển tiếp TA (Human-in-the-loop)**.
+  - *Lý do theo cost-of-error:* Nếu AI tự động hoàn toàn (Automate) mà trả lời sai hoặc cite nhầm slide, học viên sẽ học sai kiến thức trọng tâm, trượt quiz hoặc mất niềm tin vào hệ thống. Vì vậy chọn **Conditional Automation**: AI tự trả lời khi xác định được căn cứ và citation đủ tin cậy (High confidence); nếu thiếu dữ liệu, scope mơ hồ hoặc out-of-scope -> chủ động hỏi lại hoặc hỗ trợ nút **Chuyển tiếp TA (Human-in-the-loop)**.
 
 - **§4b. Nguyên tắc HAX/PAIR áp dụng (4 nguyên tắc):**
 
@@ -127,7 +127,7 @@ Loại: [x] Tối ưu tính năng có sẵn  [ ] Tính năng mới
 |---|---|
 | **G1 — Làm rõ hệ thống làm được gì** | Ngay top sidebar của Tutor, hiển thị rõ phạm vi context đang được nhận diện: `[Scope: Trang hiện tại / Tài liệu / Buổi học]`. |
 | **G2 — Làm rõ nó làm tốt đến đâu** | Mọi câu trả lời đều đính kèm mức độ tin cậy `[Độ tin cậy: Cao / Trung bình / Thấp]` và danh sách nguồn tài liệu đã dùng. |
-| **G10 — Thu hẹp phạm vi khi nghi ngờ** | Khi user hỏi câu mơ hồ (*"Tóm tắt bài này"*), hệ thống hiển thị lựa chọn xác nhận scope: `[Trang hiện tại (Slide 12)]` \| `[Toàn bộ File PDF]` \| `[Cả buổi 6]`. |
+| **G10 — Thu hẹp phạm vi khi nghi ngờ** | Khi user hỏi câu mơ hồ (*"Tóm tắt bài này"*), hệ thống hiển thị lựa chọn xác nhận scope: `[Trang hiện tại (Slide 12)]` | `[Toàn bộ File PDF]` | `[Cả buổi 6]`. |
 | **G11 — Giải thích vì sao** | Bắt buộc có Citation-first: mỗi ý chính đều đính kèm trỏ nguồn `[Slide X]` hoặc `[Transcript Txx]`, click vào trỏ thẳng tới vị trí slide/đoạn đọc. |
 
 ---
@@ -228,4 +228,3 @@ Loại: [x] Tối ưu tính năng có sẵn  [ ] Tính năng mới
 |---|---|---|
 | 30/07 11:36 | Pull latest docs & data analysis từ main | Cập nhật số liệu mining chuẩn: 156/1,261 summary, 87 no-access, 101 empty citation. |
 | 30/07 11:45 | Tạo file `spec.md` hoàn chỉnh theo `03-template-ai-spec.md` trên branch `docs` | Chốt AI SPEC làm deliverable trung tâm cho dự án VLearn Smart Contextual Companion. |
-| 30/07 14:25 | Refine specification qua `bmad-spec` | Chuẩn hoá 5 Core Capabilities (`CAP-1`..`CAP-5`) kèm Intent + Success signal và 4 BMad Design Constraints. |
