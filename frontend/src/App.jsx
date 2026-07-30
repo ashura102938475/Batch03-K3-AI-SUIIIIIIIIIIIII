@@ -20,11 +20,7 @@ import {
   Maximize2,
   MessageSquarePlus,
   Minimize2,
-  PanelLeftClose,
-  PanelLeftOpen,
   PanelRight,
-  PanelRightClose,
-  PanelRightOpen,
   PlayCircle,
   Search,
   Send,
@@ -38,7 +34,6 @@ const API_BASE_URL = "http://localhost:8000";
 pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
 const WATERMARK_CLASS = "pdf-watermark-text";
 const WATERMARK_WORDS = /(ai\s+in\s+action|hackathon)/i;
-const COLLAPSED_SOURCE_LIMIT = 4;
 
 const demoPrompts = [
   { id: "page", label: "Trang hiện tại", query: "Tóm tắt nội dung chính trong slide này" },
@@ -351,9 +346,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [draftTicket, setDraftTicket] = useState(null);
   const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
-  const [isLibraryCollapsed, setIsLibraryCollapsed] = useState(false);
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
-  const [expandedSourceMessages, setExpandedSourceMessages] = useState(() => new Set());
   const wheelNavRef = useRef(0);
   const pdfFrameRef = useRef(null);
   const chatLogRef = useRef(null);
@@ -426,16 +419,9 @@ function App() {
     }
 
     updatePageWidth();
-    const resizeObserver = typeof ResizeObserver === "undefined"
-      ? null
-      : new ResizeObserver(updatePageWidth);
-    if (resizeObserver && pdfFrameRef.current) {
-      resizeObserver.observe(pdfFrameRef.current);
-    }
     window.addEventListener("resize", updatePageWidth);
     return () => {
       cancelAnimationFrame(frameId);
-      resizeObserver?.disconnect();
       window.removeEventListener("resize", updatePageWidth);
     };
   }, []);
@@ -728,20 +714,6 @@ function App() {
     setExpandedDays((prev) => ({ ...prev, [dayId]: !prev[dayId] }));
   }
 
-  function toggleMessageSources(messageIndex) {
-    setExpandedSourceMessages((current) => {
-      const next = new Set(current);
-      if (next.has(messageIndex)) {
-        next.delete(messageIndex);
-      } else {
-        next.add(messageIndex);
-      }
-      return next;
-    });
-  }
-
-  const isFocusMode = isLibraryCollapsed && isChatCollapsed;
-
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -760,31 +732,16 @@ function App() {
 
       </header>
 
-      <main
-        className={[
-          "workspace",
-          isLibraryCollapsed ? "workspace--library-collapsed" : "",
-          isChatCollapsed ? "workspace--chat-collapsed" : ""
-        ].filter(Boolean).join(" ")}
-      >
+      <main className={`workspace ${isChatCollapsed ? "workspace--chat-collapsed" : ""}`}>
         <aside className="library-panel">
           <div className="sidebar-header">
             <div className="header-icon-box">
               <BookOpen size={18} />
             </div>
             <div className="header-text">
-              <h3>Học liệu</h3>
+              <h3>Học liệu môn học</h3>
               <p>Chương, slide và tài liệu đã upload</p>
             </div>
-            <button
-              className="icon-button panel-toggle-button"
-              type="button"
-              onClick={() => setIsLibraryCollapsed(true)}
-              aria-label="Đóng danh sách học liệu"
-              title="Đóng danh sách học liệu"
-            >
-              <PanelLeftClose size={18} />
-            </button>
           </div>
 
           <div className="sidebar-divider" />
@@ -846,46 +803,11 @@ function App() {
 
         <section className="viewer-panel">
           <div className="viewer-toolbar">
-            <div className="viewer-toolbar-actions">
-              {isLibraryCollapsed ? (
-                <button
-                  className="icon-button"
-                  type="button"
-                  onClick={() => setIsLibraryCollapsed(false)}
-                  aria-label="Mở danh sách học liệu"
-                  title="Mở danh sách học liệu"
-                >
-                  <PanelLeftOpen size={18} />
-                </button>
-              ) : null}
+            <div>
               <button className="tool-button active" type="button">
                 <BookOpen size={16} />
                 Đọc
               </button>
-              <button
-                className="icon-button"
-                type="button"
-                onClick={() => {
-                  const nextCollapsed = !isFocusMode;
-                  setIsLibraryCollapsed(nextCollapsed);
-                  setIsChatCollapsed(nextCollapsed);
-                }}
-                aria-label={isFocusMode ? "Thoát chế độ tập trung" : "Mở rộng vùng slide"}
-                title={isFocusMode ? "Hiện lại hai panel" : "Đóng hai panel để mở rộng slide"}
-              >
-                {isFocusMode ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-              </button>
-              {isChatCollapsed ? (
-                <button
-                  className="icon-button"
-                  type="button"
-                  onClick={() => setIsChatCollapsed(false)}
-                  aria-label="Mở VLearn Tutor"
-                  title="Mở VLearn Tutor"
-                >
-                  <PanelRightOpen size={18} />
-                </button>
-              ) : null}
             </div>
             <div className="scope-chip">
               <PanelRight size={16} />
@@ -971,18 +893,9 @@ function App() {
             </div>
             <div style={{ display: "flex", gap: "4px" }}>
               <button className="icon-button" type="button" onClick={() => setIsChatCollapsed(true)} aria-label="Thu gọn Chatbot" title="Thu gọn VLearn Tutor (Toàn màn hình Slide)">
-                <PanelRightClose size={18} />
+                <Minimize2 size={18} />
               </button>
-              <button
-                className="icon-button"
-                type="button"
-                onClick={() => {
-                  setMessages([]);
-                  setExpandedSourceMessages(new Set());
-                }}
-                aria-label="Tạo hội thoại mới"
-                title="Xóa hội thoại"
-              >
+              <button className="icon-button" type="button" onClick={() => setMessages([])} aria-label="Tạo hội thoại mới" title="Xóa hội thoại">
                 <MessageSquarePlus size={18} />
               </button>
             </div>
@@ -1026,13 +939,7 @@ function App() {
                         </ReactMarkdown>
                       </div>
                       {message.sources?.length > 0 ? (() => {
-                        const uniqueSources = [...new Set(message.sources)];
-                        const sourcesExpanded = expandedSourceMessages.has(index);
-                        const displayedSources = sourcesExpanded
-                          ? uniqueSources
-                          : uniqueSources.slice(0, COLLAPSED_SOURCE_LIMIT);
-                        const hiddenSourceCount = uniqueSources.length - COLLAPSED_SOURCE_LIMIT;
-                        const renderedSources = displayedSources.map((source) => {
+                        const renderedSources = message.sources.map((source) => {
                           const pageMatch = source.match(/Trang\s+(\d+)/i);
                           const docMatch = documents.find(
                             (d) => source.toLowerCase().includes(d.filename.toLowerCase()) || source.toLowerCase().includes(d.id.toLowerCase())
@@ -1134,33 +1041,8 @@ function App() {
 
                         return (
                           <div className="source-section">
-                            <div className="source-section-header">
-                              <span className="section-label">Trích dẫn</span>
-                              <span className="source-count">
-                                {Math.min(displayedSources.length, uniqueSources.length)}/{uniqueSources.length} nguồn
-                              </span>
-                            </div>
+                            <span className="section-label">Trích dẫn (Grounding Sources):</span>
                             <div className="source-list">{renderedSources}</div>
-                            {uniqueSources.length > COLLAPSED_SOURCE_LIMIT ? (
-                              <button
-                                type="button"
-                                className="source-toggle"
-                                onClick={() => toggleMessageSources(index)}
-                                aria-expanded={sourcesExpanded}
-                              >
-                                {sourcesExpanded ? (
-                                  <>
-                                    <ChevronUp size={15} />
-                                    Thu gọn nguồn
-                                  </>
-                                ) : (
-                                  <>
-                                    <ChevronDown size={15} />
-                                    Xem thêm {hiddenSourceCount} nguồn
-                                  </>
-                                )}
-                              </button>
-                            ) : null}
                           </div>
                         );
                       })() : null}
@@ -1338,6 +1220,17 @@ function App() {
         </div>
       )}
 
+      {isChatCollapsed && (
+        <button
+          type="button"
+          className="floating-chat-trigger"
+          onClick={() => setIsChatCollapsed(false)}
+          title="Mở VLearn Tutor"
+        >
+          <Bot size={22} />
+          <span>Hỏi VLearn Tutor</span>
+        </button>
+      )}
     </div>
   );
 }
