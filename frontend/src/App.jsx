@@ -465,7 +465,7 @@ function App() {
     }
   }
 
-<<<<<<< Updated upstream
+
   function clampSelectionMenuPosition(clientX, clientY) {
     const menuWidth = 320;
     const menuHeight = 150;
@@ -647,10 +647,6 @@ function App() {
       }
     ]);
     setSelectionMenu(null);
-=======
-  async function escalateToTA(userQuery) {
-    openDraftTicket(userQuery);
->>>>>>> Stashed changes
   }
 
   function toggleDay(dayId) {
