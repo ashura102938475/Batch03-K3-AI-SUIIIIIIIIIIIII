@@ -14,7 +14,9 @@ import {
   CircleHelp,
   FileText,
   Highlighter,
+  Maximize2,
   MessageSquarePlus,
+  Minimize2,
   PanelRight,
   PlayCircle,
   Search,
@@ -322,6 +324,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [draftTicket, setDraftTicket] = useState(null);
   const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
+  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const wheelNavRef = useRef(0);
   const pdfFrameRef = useRef(null);
   const [messages, setMessages] = useState([
@@ -331,7 +334,7 @@ function App() {
       status: "🟢 Fast API Connected",
       confidence: 95,
       scope: { label: "Trang hiện tại", reason: "Kết nối FastAPI Backend & NVIDIA Provider." },
-      sources: ["Trang 2", "T04-013"],
+      sources: ["Trang 2"],
       text: "Xin chào. Hệ thống đã kết nối trực tiếp với **FastAPI Backend Pipeline (NVIDIA Model & Telegram TA Bot)**. Bạn có thể hỏi theo trang, cả tài liệu, hay cả buổi học."
     }
   ]);
@@ -387,9 +390,9 @@ function App() {
     };
   }, []);
 
-  function changeDoc(nextDoc) {
+  function changeDoc(nextDoc, initialPage = 1) {
     setDocId(nextDoc.id);
-    setPage(1);
+    setPage(initialPage);
     setPdfPageCount(nextDoc.pageCount);
     setSelectedText("");
     setSelectionMenu(null);
@@ -401,8 +404,8 @@ function App() {
         status: "Đổi tài liệu",
         confidence: 86,
         scope: { label: "Tài liệu hiện tại", reason: `Đã mở ${nextDoc.filename}.` },
-        sources: [`${nextDoc.sourcePath}`],
-        text: `Đã chuyển sang ${nextDoc.title}. Dữ liệu slide từ ${nextDoc.sourcePath}.`
+        sources: [`${nextDoc.filename} - Trang ${initialPage}`],
+        text: `Đã chuyển sang ${nextDoc.title} (Trang ${initialPage}).`
       }
     ]);
   }
@@ -411,6 +414,7 @@ function App() {
     const cleanQuery = rawQuery.trim();
     if (!cleanQuery || isLoading) return;
 
+    setIsChatCollapsed(false);
     setQuestion("");
     setIsLoading(true);
 
@@ -535,10 +539,31 @@ function App() {
 
   function goToPage(nextPage) {
     const safePage = Math.max(1, Math.min(nextPage, pageCount));
-    if (safePage === page) return;
     setPage(safePage);
     setSelectedText("");
     setSelectionMenu(null);
+  }
+
+  function handleNavigateCitation(sourceStr) {
+    const pageMatch = sourceStr.match(/Trang\s+(\d+)/i);
+    const pageNum = pageMatch ? Number(pageMatch[1]) : null;
+
+    const matchedDoc = documents.find(
+      (d) => sourceStr.toLowerCase().includes(d.filename.toLowerCase()) || sourceStr.toLowerCase().includes(d.id.toLowerCase())
+    );
+
+    const targetDoc = matchedDoc || doc;
+    const targetPage = pageNum || 1;
+
+    if (targetDoc.id !== doc.id) {
+      changeDoc(targetDoc, targetPage);
+    } else {
+      goToPage(targetPage);
+    }
+
+    if (pdfFrameRef.current) {
+      pdfFrameRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
   }
 
   function handleSlideWheel(event) {
@@ -670,7 +695,7 @@ function App() {
 
       </header>
 
-      <main className="workspace">
+      <main className={`workspace ${isChatCollapsed ? "workspace--chat-collapsed" : ""}`}>
         <aside className="library-panel">
           <div className="sidebar-header">
             <div className="header-icon-box">
@@ -827,12 +852,16 @@ function App() {
               </div>
               <div>
                 <h2>VLearn Tutor</h2>
-                <p>FastAPI & NVIDIA Live Connected</p>
               </div>
             </div>
-            <button className="icon-button" type="button" onClick={() => setMessages([])} aria-label="Tạo hội thoại mới">
-              <MessageSquarePlus size={18} />
-            </button>
+            <div style={{ display: "flex", gap: "4px" }}>
+              <button className="icon-button" type="button" onClick={() => setIsChatCollapsed(true)} aria-label="Thu gọn Chatbot" title="Thu gọn VLearn Tutor (Toàn màn hình Slide)">
+                <Minimize2 size={18} />
+              </button>
+              <button className="icon-button" type="button" onClick={() => setMessages([])} aria-label="Tạo hội thoại mới" title="Xóa hội thoại">
+                <MessageSquarePlus size={18} />
+              </button>
+            </div>
           </div>
 
 
@@ -861,49 +890,114 @@ function App() {
                         <span>{message.scope?.label}</span>
                       </div>
                       <div style={{ whiteSpace: "pre-wrap" }}>{message.text}</div>
-                      {message.sources?.length > 0 ? (
-                        <div className="source-section">
-                          <span className="section-label">Trích dẫn (Grounding Sources):</span>
-                          <div className="source-list">
-                            {message.sources.map((source) => {
-                              // Match: "filename.pdf - Trang N"  OR  "Trang N"
-                              const fullMatch = source.match(/^(.+?)\s*-\s*Trang\s+(\d+)$/i);
-                              const shortMatch = !fullMatch && source.match(/^Trang\s+(\d+)$/i);
-                              if (fullMatch || shortMatch) {
-                                const pageNum = fullMatch ? Number(fullMatch[2]) : Number(shortMatch[1]);
-                                const pdfName = fullMatch ? fullMatch[1].trim() : null;
-                                const targetDoc = pdfName
-                                  ? documents.find((d) => d.filename === pdfName || d.id === pdfName)
-                                  : null;
-                                const handleClick = () => {
-                                  if (targetDoc && targetDoc.id !== doc.id) {
-                                    changeDoc(targetDoc);
-                                    setTimeout(() => setPage(pageNum), 50);
-                                  } else {
-                                    goToPage(pageNum);
-                                  }
-                                };
-                                return (
-                                  <button
-                                    key={source}
-                                    type="button"
-                                    className="source-chip source-chip--page"
-                                    onClick={handleClick}
-                                    title={`Chuyển đến ${source}`}
-                                  >
-                                    {source}
-                                  </button>
-                                );
-                              }
-                              return (
-                                <span key={source} className="source-chip source-chip--transcript">
-                                  {source}
-                                </span>
-                              );
-                            })}
+                      {message.sources?.length > 0 ? (() => {
+                        const renderedSources = message.sources.map((source) => {
+                          const pageMatch = source.match(/Trang\s+(\d+)/i);
+                          const docMatch = documents.find(
+                            (d) => source.toLowerCase().includes(d.filename.toLowerCase()) || source.toLowerCase().includes(d.id.toLowerCase())
+                          );
+
+                          if (pageMatch || docMatch) {
+                            return (
+                              <button
+                                key={source}
+                                type="button"
+                                className="source-chip source-chip--page"
+                                onClick={() => handleNavigateCitation(source)}
+                                title={`Bấm để xem ${source}`}
+                              >
+                                📄 {source}
+                              </button>
+                            );
+                          }
+
+                          if (/^T\d{2}-\d{3}$/i.test(source.trim())) {
+                            const snippet = transcriptSnippets.find((s) => s.id === source.trim());
+                            const dayDoc = snippet ? documents.find((d) => d.dayId === snippet.dayId) : null;
+                            const targetNav = dayDoc ? `${dayDoc.filename} - Trang 1` : source;
+                            return (
+                              <button
+                                key={source}
+                                type="button"
+                                className="source-chip source-chip--page"
+                                onClick={() => handleNavigateCitation(targetNav)}
+                                title={`Bấm để chuyển đến học liệu ngày học`}
+                              >
+                                🎙 Transcript [{source}] - {snippet?.title || "Buổi học"} (Trang 1)
+                              </button>
+                            );
+                          }
+
+                          if (source.toLowerCase().includes("google scholar")) {
+                            const match = source.match(/"([^"]+)"/);
+                            const searchQuery = match ? match[1] : source.replace(/google scholar/gi, "").replace(/[()"]/g, "").trim();
+                            const url = `https://scholar.google.com/scholar?q=${encodeURIComponent(searchQuery)}`;
+                            return (
+                              <a
+                                key={source}
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="source-chip source-chip--page"
+                                style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                                title="Bấm để tìm trên Google Scholar (mở tab mới)"
+                              >
+                                🎓 {source} ↗
+                              </a>
+                            );
+                          }
+
+                          if (source.toLowerCase().includes("google search") || source.toLowerCase().includes("google")) {
+                            const match = source.match(/"([^"]+)"/);
+                            const searchQuery = match ? match[1] : source.replace(/google search|google/gi, "").replace(/[()"]/g, "").trim();
+                            const url = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
+                            return (
+                              <a
+                                key={source}
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="source-chip source-chip--page"
+                                style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                                title="Bấm để tìm trên Google (mở tab mới)"
+                              >
+                                🔍 {source} ↗
+                              </a>
+                            );
+                          }
+
+                          if (source.startsWith("http://") || source.startsWith("https://")) {
+                            return (
+                              <a
+                                key={source}
+                                href={source}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="source-chip source-chip--page"
+                                style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                                title="Bấm để truy cập trang web (mở tab mới)"
+                              >
+                                🌐 {source} ↗
+                              </a>
+                            );
+                          }
+
+                          return (
+                            <span key={source} className="source-chip source-chip--transcript">
+                              🌐 {source}
+                            </span>
+                          );
+                        }).filter(Boolean);
+
+                        if (renderedSources.length === 0) return null;
+
+                        return (
+                          <div className="source-section">
+                            <span className="section-label">Trích dẫn (Grounding Sources):</span>
+                            <div className="source-list">{renderedSources}</div>
                           </div>
-                        </div>
-                      ) : null}
+                        );
+                      })() : null}
                       {message.needs_clarification ? (
                         <div className="clarify-actions">
                           <button type="button" onClick={() => ask("Tóm tắt trang này", "current_page")}>Trang hiện tại</button>
@@ -1076,6 +1170,18 @@ function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {isChatCollapsed && (
+        <button
+          type="button"
+          className="floating-chat-trigger"
+          onClick={() => setIsChatCollapsed(false)}
+          title="Mở VLearn Tutor"
+        >
+          <Bot size={22} />
+          <span>Hỏi VLearn Tutor</span>
+        </button>
       )}
     </div>
   );
