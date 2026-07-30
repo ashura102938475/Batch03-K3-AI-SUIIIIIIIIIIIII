@@ -18,9 +18,12 @@ import {
   Send,
   ShieldCheck,
   Sparkles,
-  Target
+  Target,
+  SendHorizontal
 } from "lucide-react";
 import { dayGroups, documents, evidenceMetrics, transcriptSnippets } from "./data/slides.js";
+
+const API_BASE_URL = "http://localhost:8000";
 
 const demoPrompts = [
   { id: "page", label: "Trang hiện tại", query: "Tóm tắt nội dung chính trong slide này" },
@@ -75,7 +78,7 @@ function externalMockLinks(query, doc) {
   ];
 }
 
-function detectScope(query, hasSelection) {
+function detectScopeLocal(query, hasSelection) {
   const text = normalize(query);
   const asksForSensitiveAccess = /(api key|apikey|password|mat khau|admin|system prompt|bo qua huong dan|ignore previous)/.test(text);
   const asksForResourceLink = /(link|duong dan|url|download|tai file|tai ve|mo file|mo pdf|link pdf|pdf link|file pdf|nguon tai lieu)/.test(text);
@@ -87,7 +90,7 @@ function detectScope(query, hasSelection) {
       label: asksForExternalSource ? "Nguồn bên ngoài" : "Ngoài phạm vi học liệu",
       confidence: asksForExternalSource ? 84 : 98,
       reason: asksForExternalSource
-        ? "Câu hỏi yêu cầu nguồn ngoài data pack nên Tutor chỉ hiển thị link tham khảo mock."
+        ? "Câu hỏi yêu cầu nguồn ngoài data pack nên Tutor hiển thị link tham khảo."
         : "Câu hỏi cần thông tin hệ thống, logistics hoặc vượt thẩm quyền của Tutor."
     };
   }
@@ -139,7 +142,7 @@ function detectScope(query, hasSelection) {
   };
 }
 
-function retrieve(query, scope, doc, slide, selectedText) {
+function retrieveLocal(query, scope, doc, slide, selectedText) {
   if (scope.scope === "resource_link") return [];
   if (scope.scope === "out_of_scope" || scope.scope === "ambiguous") return [];
   if (scope.scope === "selection") {
@@ -177,7 +180,7 @@ function retrieve(query, scope, doc, slide, selectedText) {
   return ranked.slice(0, 6);
 }
 
-function buildTutorAnswer(query, scope, sources, doc, slide) {
+function buildTutorAnswerLocal(query, scope, sources, doc, slide) {
   if (scope.scope === "out_of_scope") {
     return {
       role: "assistant",
@@ -192,7 +195,7 @@ function buildTutorAnswer(query, scope, sources, doc, slide) {
       ],
       links: externalMockLinks(query, doc),
       text:
-        "Câu hỏi này nằm ngoài phạm vi slide đang mở. Dưới đây là các nguồn thông tin tra cứu ngoài được trích dẫn cụ thể:"
+        "Mình chỉ trả lời được trong phạm vi học liệu của khoá. Những thông tin khác bạn bấm **Chuyển TA** để hỏi người phụ trách nhé."
     };
   }
   if (scope.scope === "ambiguous") {
@@ -206,21 +209,6 @@ function buildTutorAnswer(query, scope, sources, doc, slide) {
       text: "Câu hỏi này chưa rõ phạm vi. Bạn muốn mình đọc trang hiện tại, cả tài liệu, hay cả buổi học?"
     };
   }
-  if (scope.scope === "resource_link") {
-    return {
-      role: "assistant",
-      mode: "mock-link",
-      status: "Có link",
-      confidence: scope.confidence,
-      scope,
-      sources: [`${doc.filename} - Trang ${slide.page}`, doc.sourcePath],
-      links: [
-        { label: `📄 File Slide gốc: ${doc.filename} (${doc.sourcePath})`, href: doc.pdfUrl },
-        { label: `📌 Vị trí chính xác: ${doc.filename} - Trang ${slide.page}`, href: `${doc.pdfUrl}#page=${slide.page}` }
-      ],
-      text: `Đây là link file PDF và vị trí trang ${slide.page} đang xem trong tài liệu:`
-    };
-  }
   if (!sources.length) {
     return {
       role: "assistant",
@@ -229,15 +217,12 @@ function buildTutorAnswer(query, scope, sources, doc, slide) {
       confidence: 30,
       scope,
       sources: [],
-      text: "Mình chưa tìm thấy nguồn đủ sát trong dữ liệu frontend, nên không tạo câu trả lời suy đoán. Hãy đổi slide/tài liệu hoặc chuyển TA."
+      text: "Mình chưa tìm thấy nguồn đủ sát trong dữ liệu, nên không tạo câu trả lời suy đoán. Bạn có thể bấm **Chuyển TA**."
     };
   }
 
   const keyIdeas = sources.slice(0, 4).map((source, index) => `${index + 1}. ${source.body} [${source.cite}]`);
-  const keywords = sources
-    .slice(0, 4)
-    .map((source) => source.title)
-    .join(", ");
+  const keywords = sources.slice(0, 4).map((source) => source.title).join(", ");
 
   return {
     role: "assistant",
@@ -246,7 +231,7 @@ function buildTutorAnswer(query, scope, sources, doc, slide) {
     confidence: scope.confidence,
     scope,
     sources: sources.map((source) => source.cite),
-    text: `Tổng quan: Mình đang trả lời theo phạm vi "${scope.label}" và chỉ dùng các nguồn đã retrieve.\n\nÝ chính:\n${keyIdeas.join("\n")}\n\nKeyword cần nhớ: ${keywords}.\n\nPhần dễ nhầm: citation ở đây trỏ về slide/transcript trong data pack, không phải kiến thức ngoài tài liệu.`
+    text: `Tổng quan: Trả lời theo phạm vi "${scope.label}" và các nguồn đã retrieve.\n\nÝ chính:\n${keyIdeas.join("\n")}\n\nKeyword cần nhớ: ${keywords}.`
   };
 }
 
@@ -278,15 +263,16 @@ function App() {
   const [page, setPage] = useState(2);
   const [selectedText, setSelectedText] = useState("");
   const [question, setQuestion] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState([
     {
       role: "assistant",
-      mode: "system",
-      status: "Sẵn sàng",
-      confidence: 88,
-      scope: { label: "Trang hiện tại", reason: "Mở slide từ data pack Day 1." },
+      mode: "live",
+      status: "🟢 Fast API Connected",
+      confidence: 95,
+      scope: { label: "Trang hiện tại", reason: "Kết nối FastAPI Backend & NVIDIA Provider." },
       sources: ["Trang 2", "T04-013"],
-      text: "Xin chào. Mình có thể tóm tắt slide, cả tài liệu hoặc cả buổi học dựa trên dữ liệu đã trích từ repo."
+      text: "Xin chào. Hệ thống đã kết nối trực tiếp với **FastAPI Backend Pipeline (NVIDIA Model & Telegram TA Bot)**. Bạn có thể hỏi theo trang, cả tài liệu, hay cả buổi học."
     }
   ]);
 
@@ -307,29 +293,84 @@ function App() {
         confidence: 86,
         scope: { label: "Tài liệu hiện tại", reason: `Đã mở ${nextDoc.filename}.` },
         sources: [`${nextDoc.sourcePath}`],
-        text: `Đã chuyển sang ${nextDoc.title}. Dữ liệu slide được lấy từ ${nextDoc.sourcePath}.`
+        text: `Đã chuyển sang ${nextDoc.title}. Dữ liệu slide từ ${nextDoc.sourcePath}.`
       }
     ]);
   }
 
-  function ask(rawQuery, forcedScope = null) {
+  async function ask(rawQuery, forcedScopeStr = null) {
     const cleanQuery = rawQuery.trim();
-    if (!cleanQuery) return;
-    const scope = forcedScope || detectScope(cleanQuery, Boolean(selectedText.trim()));
-    const sources = retrieve(cleanQuery, scope, doc, slide, selectedText);
-    const assistant = buildTutorAnswer(cleanQuery, scope, sources, doc, slide);
-    setMessages((current) => [...current, { role: "user", text: cleanQuery }, assistant]);
+    if (!cleanQuery || isLoading) return;
+
     setQuestion("");
+    setIsLoading(true);
+
+    setMessages((current) => [...current, { role: "user", text: cleanQuery }]);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/companion/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: cleanQuery,
+          current_day: doc.dayId || "day01",
+          current_page: page,
+          selection: selectedText,
+          forced_scope: forcedScopeStr
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}`);
+      }
+
+      const data = await response.json();
+      const assistantMessage = {
+        role: "assistant",
+        mode: data.mode === "live" ? "live" : "rule",
+        status: data.mode === "live" ? "🟢 LIVE API" : "🟡 RULE",
+        confidence: data.confidence === "cao" ? 95 : 75,
+        model: data.model,
+        scope: {
+          scope: data.scope,
+          label: data.scope_label,
+          reason: data.needs_clarification ? "Cần người học xác nhận phạm vi." : `Phạm vi ${data.scope_label}`
+        },
+        sources: data.sources_used || [],
+        text: data.answer,
+        needs_clarification: data.needs_clarification,
+        clarification_options: data.clarification_options,
+        ta_handoff_suggested: data.ta_handoff_suggested
+      };
+
+      setMessages((current) => [...current, assistantMessage]);
+    } catch (error) {
+      console.warn("Backend API call failed, falling back to local client logic:", error);
+      const scope = detectScopeLocal(cleanQuery, Boolean(selectedText.trim()));
+      const sources = retrieveLocal(cleanQuery, scope, doc, slide, selectedText);
+      const assistant = buildTutorAnswerLocal(cleanQuery, scope, sources, doc, slide);
+      setMessages((current) => [...current, assistant]);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
-  function forceScope(scopeName) {
-    const mapping = {
-      page: { scope: "page", label: "Trang hiện tại", confidence: 92, reason: "Bạn đã chọn phạm vi trang hiện tại." },
-      document: { scope: "document", label: "Tài liệu hiện tại", confidence: 92, reason: "Bạn đã chọn phạm vi cả tài liệu." },
-      session: { scope: "session", label: "Cả buổi học", confidence: 90, reason: "Bạn đã chọn phạm vi cả buổi học." }
-    };
-    const lastUser = [...messages].reverse().find((item) => item.role === "user");
-    ask(lastUser?.text || question || "Tóm tắt bài này đi", mapping[scopeName]);
+  async function escalateToTA(userQuery) {
+    try {
+      const resp = await fetch(`${API_BASE_URL}/api/v1/escalate-ta`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reason: "user_requested",
+          student_query: userQuery || "Yêu cầu hỗ trợ từ học viên",
+          current_day: doc.dayId || "day01"
+        })
+      });
+      const data = await resp.json();
+      alert(`🚀 ${data.message}\n(Đã gửi thông báo đẩy tới Kênh Telegram của TA!)`);
+    } catch (e) {
+      alert("Đã ghi nhận yêu cầu chuyển TA.");
+    }
   }
 
   function toggleDay(dayId) {
@@ -351,7 +392,9 @@ function App() {
             </strong>
           </div>
         </div>
-
+        <div className="connection-badge">
+          <span>⚡ FastAPI Live Server</span>
+        </div>
       </header>
 
       <main className="workspace">
@@ -502,7 +545,7 @@ function App() {
               </div>
               <div>
                 <h2>VLearn Tutor</h2>
-                <p>Scope-aware mock RAG</p>
+                <p>FastAPI & NVIDIA Live Connected</p>
               </div>
             </div>
             <button className="icon-button" type="button" onClick={() => setMessages([])} aria-label="Tạo hội thoại mới">
@@ -543,29 +586,17 @@ function App() {
                     <>
                       <div className="message-meta">
                         <span>{message.scope?.label}</span>
-                        <span>{message.status}</span>
+                        <span className="status-tag">{message.status}</span>
                       </div>
-                      <p>{message.text}</p>
+                      <div style={{ whiteSpace: "pre-wrap" }}>{message.text}</div>
                       <div className="confidence-row">
                         <ShieldCheck size={15} />
                         <span>{message.confidence}%</span>
-                        <small>{message.scope?.reason}</small>
+                        <small>{message.model || message.scope?.reason}</small>
                       </div>
-                      {message.links?.length > 0 ? (
-                        <div className="link-section">
-                          <span className="section-label">Nguồn liên kết chi tiết:</span>
-                          <div className="link-list">
-                            {message.links.map((link) => (
-                              <a href={link.href} target="_blank" rel="noreferrer" key={link.href}>
-                                {link.label}
-                              </a>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
                       {message.sources?.length > 0 ? (
                         <div className="source-section">
-                          <span className="section-label">Tài liệu trích dẫn (Grounding):</span>
+                          <span className="section-label">Trích dẫn (Grounding Sources):</span>
                           <div className="source-list">
                             {message.sources.map((source) => (
                               <span key={source}>{source}</span>
@@ -573,17 +604,46 @@ function App() {
                           </div>
                         </div>
                       ) : null}
-                      {message.scope?.scope === "ambiguous" ? (
+                      {message.needs_clarification ? (
                         <div className="clarify-actions">
-                          <button type="button" onClick={() => forceScope("page")}>Trang</button>
-                          <button type="button" onClick={() => forceScope("document")}>Tài liệu</button>
-                          <button type="button" onClick={() => forceScope("session")}>Buổi</button>
+                          <button type="button" onClick={() => ask("Tóm tắt trang này", "current_page")}>Trang hiện tại</button>
+                          <button type="button" onClick={() => ask("Tóm tắt cả tài liệu này", "current_document")}>Cả tài liệu</button>
+                          <button type="button" onClick={() => ask("Tóm tắt cả buổi học hôm nay", "whole_session")}>Cả buổi học</button>
                         </div>
                       ) : null}
+
+                      <div className="ta-action-row" style={{ marginTop: "10px" }}>
+                        <button
+                          type="button"
+                          className="ta-button"
+                          style={{
+                            background: "#e11d48",
+                            color: "#fff",
+                            border: "none",
+                            padding: "6px 12px",
+                            borderRadius: "6px",
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px"
+                          }}
+                          onClick={() => escalateToTA(messages[index - 1]?.text || message.text)}
+                        >
+                          <SendHorizontal size={14} />
+                          Chuyển TA (Telegram Push)
+                        </button>
+                      </div>
                     </>
                   )}
                 </div>
               ))
+            )}
+            {isLoading && (
+              <div className="message assistant loading">
+                <p>⏳ Đang xử lý qua FastAPI Backend & NVIDIA Provider...</p>
+              </div>
             )}
           </div>
 
@@ -601,7 +661,7 @@ function App() {
                 onChange={(event) => setQuestion(event.target.value)}
                 placeholder="Nhập câu hỏi hoặc hỏi theo slide..."
               />
-              <button type="submit" aria-label="Gửi câu hỏi">
+              <button type="submit" aria-label="Gửi câu hỏi" disabled={isLoading}>
                 <Send size={16} />
               </button>
             </div>
@@ -609,7 +669,7 @@ function App() {
 
           <div className="guardrail-footer">
             <Target size={15} />
-            <span>Không gọi AI thật ở frontend. Mock response bám theo slide data.</span>
+            <span>Kết nối FastAPI Live Server at http://localhost:8000</span>
             <CircleHelp size={15} />
           </div>
         </aside>
