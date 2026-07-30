@@ -1,3 +1,39 @@
-.DS_Store
-node_modules/
+# Environment & Secrets
 *.env
+.env
+.env.*
+!.env.example
+
+# Python & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# IDE & Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Logs & Temporary files
+*.log
+scratch/
+
+# Node & Build Output
+node_modules/
+dist/
+build/
