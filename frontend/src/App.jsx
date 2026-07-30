@@ -343,6 +343,7 @@ function App() {
   const [page, setPage] = useState(2);
   const [selectedText, setSelectedText] = useState("");
   const [selectionMenu, setSelectionMenu] = useState(null);
+  const [selectionHighlight, setSelectionHighlight] = useState(null);
   const [selectionNotes, setSelectionNotes] = useState([]);
   const [pdfPageCount, setPdfPageCount] = useState(documents[0].pageCount);
   const [pdfPageWidth, setPdfPageWidth] = useState(0);
@@ -353,6 +354,9 @@ function App() {
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const wheelNavRef = useRef(0);
   const pdfFrameRef = useRef(null);
+  const chatLogRef = useRef(null);
+  const chatEndRef = useRef(null);
+  const questionInputRef = useRef(null);
   const [messages, setMessages] = useState([
     {
       role: "assistant",
@@ -373,6 +377,17 @@ function App() {
     [selectionNotes, doc.id, slide.page]
   );
   const progress = Math.round((messages.filter((item) => item.role === "user").length / 15) * 100);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages, isLoading]);
+
+  useEffect(() => {
+    const input = questionInputRef.current;
+    if (!input) return;
+    input.style.height = "auto";
+    input.style.height = `${Math.min(input.scrollHeight, 132)}px`;
+  }, [question]);
 
   useEffect(() => {
     function closeSelectionMenu(event) {
@@ -533,6 +548,41 @@ function App() {
     };
   }
 
+  function clearSlideSelection() {
+    window.getSelection?.()?.removeAllRanges();
+    setSelectedText("");
+    setSelectionMenu(null);
+    setSelectionHighlight(null);
+  }
+
+  function selectionRectsForFrame(selection, frame) {
+    if (!selection?.rangeCount || !frame) return [];
+    const frameRect = frame.getBoundingClientRect();
+    const rects = [];
+
+    for (let index = 0; index < selection.rangeCount; index += 1) {
+      const range = selection.getRangeAt(index);
+      Array.from(range.getClientRects()).forEach((rect) => {
+        const left = Math.max(rect.left, frameRect.left);
+        const top = Math.max(rect.top, frameRect.top);
+        const right = Math.min(rect.right, frameRect.right);
+        const bottom = Math.min(rect.bottom, frameRect.bottom);
+        const width = right - left;
+        const height = bottom - top;
+
+        if (width < 2 || height < 2) return;
+        rects.push({
+          left: left - frameRect.left,
+          top: top - frameRect.top,
+          width,
+          height
+        });
+      });
+    }
+
+    return rects.slice(0, 32);
+  }
+
   function handleSelectionPointerDown(event) {
     if (event.button !== 0) return;
     setSelectionMenu(null);
@@ -562,12 +612,17 @@ function App() {
 
     if (!cleanedSelection || !selectionStartsInPdf || !selectionEndsInPdf) {
       selection?.removeAllRanges();
-      setSelectedText("");
-      setSelectionMenu(null);
+      clearSlideSelection();
       return;
     }
 
+    const rects = selectionRectsForFrame(selection, event.currentTarget);
     setSelectedText(cleanedSelection);
+    setSelectionHighlight({
+      docId: doc.id,
+      page,
+      rects
+    });
     setSelectionMenu(clampSelectionMenuPosition(event.clientX, event.clientY));
   }
 
@@ -595,8 +650,7 @@ function App() {
   function goToPage(nextPage) {
     const safePage = Math.max(1, Math.min(nextPage, pageCount));
     setPage(safePage);
-    setSelectedText("");
-    setSelectionMenu(null);
+    clearSlideSelection();
   }
 
   function handleNavigateCitation(sourceStr) {
@@ -841,6 +895,22 @@ function App() {
               onMouseUp={handleSelectionPointerUp}
               onWheel={handleSlideWheel}
             >
+              {selectionHighlight?.docId === doc.id && selectionHighlight?.page === page ? (
+                <div className="selection-highlight-overlay" aria-hidden="true">
+                  {selectionHighlight.rects.map((rect, index) => (
+                    <span
+                      key={`${Math.round(rect.left)}-${Math.round(rect.top)}-${index}`}
+                      className="selection-highlight-rect"
+                      style={{
+                        left: `${rect.left}px`,
+                        top: `${rect.top}px`,
+                        width: `${rect.width}px`,
+                        height: `${rect.height}px`
+                      }}
+                    />
+                  ))}
+                </div>
+              ) : null}
               <Document
                 key={doc.id}
                 file={doc.pdfUrl}
@@ -928,7 +998,7 @@ function App() {
             ))}
           </div>
 
-          <div className="chat-log">
+          <div className="chat-log" ref={chatLogRef}>
             {messages.length === 0 ? (
               <div className="empty-state">
                 <Sparkles size={22} />
@@ -1114,6 +1184,7 @@ function App() {
                 </div>
               ))
             )}
+            <div ref={chatEndRef} />
 
           </div>
 
@@ -1136,6 +1207,7 @@ function App() {
             <div className="input-shell">
               <Search size={16} />
               <textarea
+                ref={questionInputRef}
                 value={question}
                 onChange={(event) => setQuestion(event.target.value)}
                 onKeyDown={(event) => {
