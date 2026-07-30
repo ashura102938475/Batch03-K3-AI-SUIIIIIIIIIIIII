@@ -33,6 +33,11 @@ EXTERNAL_SUPPORT_SIGNALS = (
     "cai dat pytorch", "pytorch tren macos", "loi cai dat thu vien",
     "sua may tinh", "cau hinh wifi",
 )
+EXTERNAL_KNOWLEDGE_SIGNALS = (
+    "kien thuc ngoai", "nguon ngoai", "nguon ben ngoai", "ben ngoai slide",
+    "ngoai slide", "ngoai tai lieu", "tim tren web", "tim tren mang",
+    "tra tren web", "internet", "google", "tham khao them", "mo rong them",
+) + EXTERNAL_SUPPORT_SIGNALS
 PROHIBITED_ASSESSMENT_SIGNALS = (
     "dap an bai kiem tra", "dap an quiz", "chi can dap an", "lam ho bai kiem tra",
     "lam ho bai tap nop", "giai ho bai thi", "tra loi ho bai thi",
@@ -63,6 +68,7 @@ SCOPE_LABELS = {
     "current_page": "Trang hiện tại",
     "current_document": "Tài liệu hiện tại",
     "whole_session": "Cả buổi học",
+    "external_knowledge": "Kiến thức bổ sung",
     "ambiguous": "Chưa rõ phạm vi",
     "out_of_scope": "Ngoài phạm vi học liệu",
 }
@@ -91,7 +97,7 @@ def detect_intent(query: str) -> str:
     folded = fold_text(query)
     if has_any(folded, PROMPT_ATTACK_SIGNALS):
         return "prompt_attack"
-    if has_any(folded, OUT_OF_SCOPE_SIGNALS + EXTERNAL_SUPPORT_SIGNALS + PROHIBITED_ASSESSMENT_SIGNALS):
+    if has_any(folded, OUT_OF_SCOPE_SIGNALS + PROHIBITED_ASSESSMENT_SIGNALS):
         return "out_of_scope"
     if has_any(folded, LOGISTICS_SIGNALS):
         return "logistics"
@@ -104,6 +110,10 @@ def detect_intent(query: str) -> str:
 
 def is_prohibited_assessment_request(query: str) -> bool:
     return has_any(fold_text(query), PROHIBITED_ASSESSMENT_SIGNALS)
+
+
+def wants_external_knowledge(query: str) -> bool:
+    return has_any(fold_text(query), EXTERNAL_KNOWLEDGE_SIGNALS)
 
 
 def detect_scope(query: str, *, has_selection: bool, current_day: str, current_page: int) -> ScopeResult:
@@ -129,6 +139,15 @@ def detect_scope(query: str, *, has_selection: bool, current_day: str, current_p
                 "logistics": "Câu hỏi về logistics khoá học, không nằm trong học liệu.",
                 "prompt_attack": "Câu hỏi có dấu hiệu can thiệp hướng dẫn hệ thống.",
             }[intent],
+        )
+
+    if wants_external_knowledge(query):
+        return ScopeResult(
+            scope="external_knowledge",
+            confidence="cao",
+            reason="Câu hỏi cần kiến thức hoặc nguồn tham khảo ngoài slide nên Tutor sẽ tra cứu nguồn web.",
+            target_day=current_day,
+            target_page=current_page,
         )
 
     # ① Cả buổi — "buổi 5", "day 6", "cả buổi này"
@@ -237,7 +256,7 @@ def detect_scope_llm(
         "Bạn là bộ phân loại Intent & Scope siêu tốc cho VLearn Tutor.\n"
         "Phân tích câu hỏi người học và trả về JSON chuẩn có định dạng:\n"
         '{"intent": "summary"|"explain"|"logistics"|"out_of_scope"|"prompt_attack", '
-        '"scope": "selected_text"|"current_page"|"current_document"|"whole_session"|"ambiguous"|"out_of_scope", '
+        '"scope": "selected_text"|"current_page"|"current_document"|"whole_session"|"external_knowledge"|"ambiguous"|"out_of_scope", '
         '"reason": "Giải thích ngắn 1 câu"}'
     )
     user_prompt = f"CÂU HỎI: \"{query}\"\nCONTEXT: Trang hiện tại = {current_page}, Day = {current_day}, Bôi đen = {has_selection}"

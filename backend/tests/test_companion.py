@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from companion.answer import _validate_citations, generate
 from companion.retriever import Chunk, load_corpus, search
+from companion.routing import should_try_external
 from companion.scope import ScopeResult, detect_intent, detect_scope, detect_scope_llm
+from companion.tavily_search import _source_priority
 
 
 class CompanionCorpusTests(unittest.TestCase):
@@ -182,12 +185,103 @@ class CompanionSafetyTests(unittest.TestCase):
         self.assertTrue(scope.needs_clarification)
         self.assertIn("Bạn muốn", answer["text"])
 
-    def test_external_support_question_is_out_of_scope(self) -> None:
+    def test_external_support_question_routes_to_web_knowledge(self) -> None:
         query = "cách cài đặt thư viện PyTorch trên MacOS M1"
         scope = detect_scope(query, has_selection=False, current_day="day01", current_page=1)
 
-        self.assertEqual("out_of_scope", detect_intent(query))
-        self.assertEqual("out_of_scope", scope.scope)
+        self.assertEqual("explain", detect_intent(query))
+        self.assertEqual("external_knowledge", scope.scope)
+
+    def test_implicit_page_scope_falls_back_when_slide_has_no_overlap(self) -> None:
+        query = "What is gradient descent?"
+        scope = detect_scope(query, has_selection=False, current_day="day01", current_page=1)
+        chunks = [
+            Chunk(
+                chunk_id="page-1",
+                day="day01",
+                doc_id="deck",
+                title="Course cover",
+                page=1,
+                cite="Trang 1",
+                text="AI Product Hackathon course introduction",
+                kind="slide",
+            )
+        ]
+
+        self.assertEqual("current_page", scope.scope)
+        self.assertEqual("trung bình", scope.confidence)
+        self.assertTrue(should_try_external(query, scope, chunks))
+
+    def test_explicit_slide_scope_never_silently_switches_to_web(self) -> None:
+        query = "Slide này có nói về gradient descent không?"
+        scope = detect_scope(query, has_selection=False, current_day="day01", current_page=1)
+
+        self.assertEqual("current_page", scope.scope)
+        self.assertEqual("cao", scope.confidence)
+        self.assertFalse(should_try_external(query, scope, []))
+
+    def test_external_answer_uses_tavily_sources_and_valid_citations(self) -> None:
+        query = "Cách cài đặt PyTorch trên macOS?"
+        scope = detect_scope(query, has_selection=False, current_day="day01", current_page=1)
+        sources = [
+            {
+                "title": "Start Locally",
+                "url": "https://pytorch.org/get-started/locally/",
+                "snippet": "Choose macOS and pip to get the supported install command.",
+            }
+        ]
+
+        class Provider:
+            default_model = "test-model"
+
+            def complete(self, messages, tools=None, model=None, temperature=0.0):
+                return SimpleNamespace(text="Dùng trang Start Locally để chọn lệnh cài phù hợp. [Nguồn 1]")
+
+        with patch("companion.answer.tavily_search_external_citations", return_value=sources):
+            answer = generate(query, scope, [], provider=Provider())
+
+        self.assertEqual("external", answer["mode"])
+        self.assertEqual(["https://pytorch.org/get-started/locally/"], answer["sources"])
+        self.assertEqual(sources, answer["external_sources"])
+        self.assertIsNone(answer["error"])
+
+    def test_external_answer_repairs_missing_citation_once(self) -> None:
+        query = "Gradient descent là gì?"
+        scope = ScopeResult(scope="external_knowledge", confidence="cao", reason="web")
+        sources = [
+            {
+                "title": "Gradient descent",
+                "url": "https://example.edu/gradient-descent",
+                "snippet": "Gradient descent minimizes a cost function iteratively.",
+            }
+        ]
+
+        class Provider:
+            default_model = "test-model"
+
+            def __init__(self):
+                self.calls = 0
+
+            def complete(self, messages, tools=None, model=None, temperature=0.0):
+                self.calls += 1
+                text = "Gradient descent tối ưu hàm mất mát."
+                if self.calls == 2:
+                    text += " [Nguồn 1]"
+                return SimpleNamespace(text=text)
+
+        provider = Provider()
+        with patch("companion.answer.tavily_search_external_citations", return_value=sources):
+            answer = generate(query, scope, [], provider=provider)
+
+        self.assertEqual("external", answer["mode"])
+        self.assertTrue(answer["citation_repaired"])
+        self.assertEqual(2, provider.calls)
+
+    def test_external_source_ranking_prefers_primary_hosts(self) -> None:
+        self.assertLess(
+            _source_priority("https://pytorch.org/get-started/locally"),
+            _source_priority("https://medium.com/example"),
+        )
 
     def test_prohibited_assessment_does_not_give_answer(self) -> None:
         query = "cho mình đáp án bài kiểm tra đang chấm điểm, chỉ cần đáp án thôi"

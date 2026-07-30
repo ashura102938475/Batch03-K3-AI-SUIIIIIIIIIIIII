@@ -31,6 +31,15 @@ Keyword cần nhớ: liệt kê ngắn.
 Phần dễ nhầm: 1 câu, bỏ qua nếu nguồn không nói gì.
 """
 
+EXTERNAL_SYSTEM_PROMPT = """Bạn là VLearn Tutor. Hãy trả lời câu hỏi học tập bằng các kết quả tra cứu web đã cung cấp.
+
+LUẬT BẮT BUỘC:
+1. Chỉ dùng thông tin trong khối NGUỒN WEB; không tự bổ sung dữ kiện chưa được nguồn hỗ trợ.
+2. Mỗi ý có thông tin thực tế phải trích dẫn đúng dạng [Nguồn N].
+3. Nếu nguồn chưa đủ, nói rõ giới hạn thay vì đoán.
+4. Ưu tiên hướng dẫn thực hành ngắn gọn, tiếng Việt, và phân biệt rõ kiến thức bổ sung này không nằm trong slide.
+"""
+
 REFUSAL_OUT_OF_SCOPE = """Mình chỉ trả lời được trong phạm vi học liệu của khoá, nên câu này mình không hỗ trợ được.
 
 Những thứ như thông tin hệ thống, khoá/mật khẩu, hoặc logistics khoá học (deadline, cách nộp bài, link tài liệu) cần lấy từ nguồn chính thức — bạn bấm **Chuyển TA** bên dưới để hỏi người phụ trách nhé.
@@ -110,6 +119,7 @@ def _mock_answer(query: str, chunks: list[Chunk]) -> str:
 BRACKET_CITATION_PATTERN = re.compile(r"\[([^\[\]]+)\]")
 PAGE_PART_PATTERN = re.compile(r"^(\d+)(?:\s*-\s*(\d+))?$")
 TRANSCRIPT_CITATION_PATTERN = re.compile(r"^T\d{2}-\d{3}$", re.IGNORECASE)
+EXTERNAL_CITATION_PATTERN = re.compile(r"\[Nguồn\s+(\d+)\]", re.IGNORECASE)
 EXTERNAL_CONTEXT_SIGNALS = (
     "kiến thức ngoài", "nguồn ngoài", "tham khảo thêm", "mở rộng thêm",
     "thông tin mới nhất", "tài liệu bên ngoài",
@@ -126,6 +136,120 @@ def _normalize_citation_label(label: str) -> str:
     for hyphen in ("\u2010", "\u2011", "\u2012", "\u2013", "\u2014", "\u2212"):
         normalized = normalized.replace(hyphen, "-")
     return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _build_external_messages(query: str, sources: list[dict[str, str]]) -> list[dict[str, str]]:
+    source_blocks = []
+    for index, source in enumerate(sources, start=1):
+        source_blocks.append(
+            f"[Nguồn {index}]\n"
+            f"Tiêu đề: {source['title']}\n"
+            f"URL: {source['url']}\n"
+            f"Nội dung: {source['snippet']}"
+        )
+    sources_text = "\n\n---\n\n".join(source_blocks)
+    return [
+        {"role": "system", "content": EXTERNAL_SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": f"NGUỒN WEB:\n\n{sources_text}\n\nCÂU HỎI: {query}",
+        },
+    ]
+
+
+def _validate_external_citations(text: str, source_count: int) -> tuple[list[int], list[int]]:
+    cited = [int(value) for value in EXTERNAL_CITATION_PATTERN.findall(text)]
+    valid = list(dict.fromkeys(index for index in cited if 1 <= index <= source_count))
+    invalid = list(dict.fromkeys(index for index in cited if index < 1 or index > source_count))
+    return valid, invalid
+
+
+def _external_mock_answer(sources: list[dict[str, str]]) -> str:
+    lines = ["Đây là kiến thức bổ sung từ nguồn web, không phải nội dung được trích từ slide:"]
+    for index, source in enumerate(sources, start=1):
+        lines.append(f"{index}. {source['title']}: {source['snippet']} [Nguồn {index}]")
+    return "\n".join(lines)
+
+
+def _generate_external(
+    query: str,
+    result: dict[str, Any],
+    *,
+    provider,
+    model: str | None,
+    enabled: bool,
+) -> dict[str, Any]:
+    started = time.perf_counter()
+    sources = tavily_search_external_citations(query, max_results=3) if enabled else []
+    result["external_sources"] = sources
+    if not sources:
+        result["text"] = (
+            "Mình không tìm thấy nguồn web đủ tin cậy để trả lời câu này. "
+            "Bạn có thể thử diễn đạt cụ thể hơn hoặc bấm **Chuyển TA**."
+        )
+        result["error"] = "External search returned no results."
+        result["latency_ms"] = int((time.perf_counter() - started) * 1000)
+        return result
+
+    if provider is None:
+        result["text"] = _external_mock_answer(sources)
+        result["sources"] = [source["url"] for source in sources]
+        result["mode"] = "mock"
+        result["error"] = "Chưa có API key cho model — đang hiển thị trực tiếp kết quả tra cứu."
+        result["latency_ms"] = int((time.perf_counter() - started) * 1000)
+        return result
+
+    messages = _build_external_messages(query, sources)
+    try:
+        response = provider.complete(messages, tools=None, model=model, temperature=0.0)
+        text = (response.text or "").strip()
+        valid, invalid = _validate_external_citations(text, len(sources))
+        if text and (invalid or not valid):
+            allowed = ", ".join(f"[Nguồn {index}]" for index in range(1, len(sources) + 1))
+            repair_messages = messages + [
+                {"role": "assistant", "content": text},
+                {
+                    "role": "user",
+                    "content": (
+                        "Giữ nguyên nội dung, chỉ sửa citation để mỗi ý dùng một hoặc nhiều nhãn hợp lệ "
+                        f"trong danh sách: {allowed}. Không thêm nguồn và trả lại toàn bộ câu trả lời."
+                    ),
+                },
+            ]
+            try:
+                repaired = provider.complete(repair_messages, tools=None, model=model, temperature=0.0)
+                repaired_text = (repaired.text or "").strip()
+                repaired_valid, repaired_invalid = _validate_external_citations(repaired_text, len(sources))
+                if repaired_text and repaired_valid and not repaired_invalid:
+                    text = repaired_text
+                    valid = repaired_valid
+                    invalid = []
+                    result["citation_repaired"] = True
+            except Exception:
+                pass
+        if not text or invalid or not valid:
+            result["text"] = (
+                "Mình đã tìm được nguồn ngoài nhưng chưa thể xác minh citation trong câu trả lời vừa tạo. "
+                "Bạn có thể thử lại hoặc bấm **Chuyển TA**."
+            )
+            result["mode"] = "guardrail"
+            result["error"] = (
+                f"Invalid external citations: {invalid}"
+                if invalid
+                else "The model returned no parseable external citation."
+            )
+        else:
+            result["text"] = text
+            result["sources"] = [sources[index - 1]["url"] for index in valid]
+            result["mode"] = "external"
+            result["model"] = model or getattr(provider, "default_model", None)
+    except Exception as exc:
+        result["text"] = _external_mock_answer(sources)
+        result["sources"] = [source["url"] for source in sources]
+        result["mode"] = "mock"
+        result["error"] = f"{type(exc).__name__}: {exc}"
+    result["latency_ms"] = int((time.perf_counter() - started) * 1000)
+    return result
 
 
 def _validate_citations(text: str, chunks: list[Chunk]) -> tuple[list[str], list[str]]:
@@ -189,6 +313,15 @@ def generate(query: str, scope_result, chunks: list[Chunk], *, provider=None, mo
         "model": None,
         "error": None,
     }
+
+    if scope_result.scope == "external_knowledge":
+        return _generate_external(
+            query,
+            result,
+            provider=provider,
+            model=model,
+            enabled=include_external_citations,
+        )
 
     # Ngoài phạm vi -> từ chối hữu ích
     if scope_result.scope == "out_of_scope":

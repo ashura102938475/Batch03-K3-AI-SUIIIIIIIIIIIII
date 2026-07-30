@@ -4,6 +4,30 @@ import json
 import os
 import urllib.request
 from typing import Any
+from urllib.parse import urlparse
+
+TRUSTED_HOSTS = (
+    "pytorch.org",
+    "tensorflow.org",
+    "scikit-learn.org",
+    "python.org",
+    "developer.apple.com",
+    "learn.microsoft.com",
+    "cloud.google.com",
+    "huggingface.co",
+    "ibm.com",
+)
+COMMUNITY_HOSTS = ("medium.com", "stackoverflow.com", "geeksforgeeks.org")
+
+
+def _source_priority(url: str) -> int:
+    host = urlparse(url).hostname or ""
+    host = host.casefold()
+    if host.endswith((".edu", ".gov")) or any(host == item or host.endswith(f".{item}") for item in TRUSTED_HOSTS):
+        return 0
+    if any(host == item or host.endswith(f".{item}") for item in COMMUNITY_HOSTS):
+        return 2
+    return 1
 
 
 def tavily_search_external_citations(query: str, max_results: int = 3) -> list[dict[str, str]]:
@@ -39,7 +63,7 @@ def tavily_search_external_citations(query: str, max_results: int = 3) -> list[d
                     "url": item.get("url", "").strip(),
                     "snippet": item.get("content", "").strip()[:180],
                 })
-            return results
+            return sorted(results, key=lambda item: _source_priority(item["url"]))
     except Exception as exc:
         print(f"Tavily search fallback (offline or key missing): {exc}")
         return []

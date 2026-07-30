@@ -19,7 +19,8 @@ load_lab_env(ROOT)
 
 from companion.answer import generate
 from companion.retriever import Chunk, load_corpus, search as corpus_search, transcript_paths
-from companion.scope import detect_intent, detect_scope
+from companion.routing import should_try_external
+from companion.scope import ScopeResult, detect_intent, detect_scope
 from companion.ta_notifier import notify_ta_channel
 from companion.trace import build_record, write_turn_trace
 from providers import make_provider
@@ -61,7 +62,15 @@ def get_active_provider(provider_name: str | None = None):
 # ===================================================================== SCHEMAS
 
 IntentType = Literal["summary", "explain", "logistics", "out_of_scope", "prompt_attack"]
-ScopeType = Literal["selected_text", "current_page", "current_document", "whole_session", "ambiguous", "out_of_scope"]
+ScopeType = Literal[
+    "selected_text",
+    "current_page",
+    "current_document",
+    "whole_session",
+    "external_knowledge",
+    "ambiguous",
+    "out_of_scope",
+]
 
 
 class DetectIntentRequest(BaseModel):
@@ -261,6 +270,7 @@ def retrieve_context_api(req: RetrieveContextRequest) -> RetrieveContextResponse
         "current_page": "Dùng nội dung slide trang hiện tại",
         "current_document": "Dùng outline / tóm tắt các trang trong file PDF",
         "whole_session": "Dùng slide nhiều trang cùng Day + clean transcript liên quan",
+        "external_knowledge": "Tra cứu nguồn web có citation bằng Tavily",
         "ambiguous": "Chờ xác nhận phạm vi từ người học",
         "out_of_scope": "Bỏ qua retrieval (ngoài phạm vi)",
     }
@@ -337,7 +347,33 @@ def full_chat_pipeline(req: ChatPipelineRequest) -> ChatPipelineResponse:
         scope_res.reason = "Bạn đã chọn phạm vi này khi mình hỏi lại."
 
     chunks = corpus_search(req.query, scope_res, CORPUS, selection=req.selection)
+    if (
+        scope_res.scope != "external_knowledge"
+        and should_try_external(req.query, scope_res, chunks)
+    ):
+        scope_res = ScopeResult(
+            scope="external_knowledge",
+            confidence="cao",
+            reason="Không thấy nội dung liên quan trên trang hiện tại nên Tutor chuyển sang tra cứu nguồn web.",
+            target_day=req.current_day,
+            target_page=req.current_page,
+        )
+        chunks = []
+
     answer = generate(req.query, scope_res, chunks, provider=provider, model=req.model)
+    if (
+        scope_res.scope != "external_knowledge"
+        and should_try_external(req.query, scope_res, chunks, answer["text"])
+    ):
+        scope_res = ScopeResult(
+            scope="external_knowledge",
+            confidence="cao",
+            reason="Nguồn slide không đủ trả lời nên Tutor đã tra cứu kiến thức bổ sung có citation.",
+            target_day=req.current_day,
+            target_page=req.current_page,
+        )
+        chunks = []
+        answer = generate(req.query, scope_res, chunks, provider=provider, model=req.model)
 
     record = build_record(
         query=req.query,
@@ -357,9 +393,14 @@ def full_chat_pipeline(req: ChatPipelineRequest) -> ChatPipelineResponse:
             ClarificationOption(label="Cả buổi học", scope="whole_session"),
         ]
 
+    external_success = bool(
+        scope_res.scope == "external_knowledge"
+        and answer["mode"] in ("external", "mock")
+        and answer["sources"]
+    )
     suggest_ta = bool(
         scope_res.scope in ("out_of_scope", "ambiguous")
-        or not chunks
+        or (not chunks and not external_success)
         or answer["mode"] in ("mock", "guardrail")
         or (chunks and not answer["sources"])
     )

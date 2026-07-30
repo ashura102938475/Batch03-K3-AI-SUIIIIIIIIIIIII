@@ -36,6 +36,7 @@ def build_record(*, query, intent, scope_result, chunks, answer, selection="") -
         "page_range": list(scope_result.page_range) if scope_result.page_range else None,
         "retrieved_chunk_ids": [c.chunk_id for c in chunks],
         "sources": answer["sources"],
+        "external_sources": answer.get("external_sources", []),
         "untrusted_found": answer["untrusted_found"],
         "mode": answer["mode"],
         "model": answer["model"],

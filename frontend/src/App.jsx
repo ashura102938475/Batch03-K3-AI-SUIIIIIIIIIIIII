@@ -138,14 +138,20 @@ function detectScopeLocal(query, hasSelection) {
   const asksForResourceLink = /(link|duong dan|url|download|tai file|tai ve|mo file|mo pdf|link pdf|pdf link|file pdf|nguon tai lieu)/.test(text);
   const asksForExternalSource = /(ben ngoai|ngoai tai lieu|ngoai slide|ngoai pham vi|internet|google|web|tim tren mang|nguon ngoai|tham khao ngoai)/.test(text);
 
-  if (asksForSensitiveAccess || asksForExternalSource || /(deadline|han nop)/.test(text)) {
+  if (asksForExternalSource) {
+    return {
+      scope: "external_knowledge",
+      label: "Kiến thức bổ sung",
+      confidence: 84,
+      reason: "Câu hỏi yêu cầu nguồn ngoài data pack; cần backend để gọi công cụ tìm kiếm."
+    };
+  }
+  if (asksForSensitiveAccess || /(deadline|han nop)/.test(text)) {
     return {
       scope: "out_of_scope",
-      label: asksForExternalSource ? "Nguồn bên ngoài" : "Ngoài phạm vi học liệu",
-      confidence: asksForExternalSource ? 84 : 98,
-      reason: asksForExternalSource
-        ? "Câu hỏi yêu cầu nguồn ngoài data pack nên Tutor hiển thị link tham khảo."
-        : "Câu hỏi cần thông tin hệ thống, logistics hoặc vượt thẩm quyền của Tutor."
+      label: "Ngoài phạm vi học liệu",
+      confidence: 98,
+      reason: "Câu hỏi cần thông tin hệ thống, logistics hoặc vượt thẩm quyền của Tutor."
     };
   }
   if (asksForResourceLink) {
@@ -235,6 +241,19 @@ function retrieveLocal(query, scope, doc, slide, selectedText) {
 }
 
 function buildTutorAnswerLocal(query, scope, sources, doc, slide) {
+  if (scope.scope === "external_knowledge") {
+    return {
+      role: "assistant",
+      mode: "rule",
+      status: "Backend chưa kết nối",
+      confidence: 40,
+      scope,
+      sources: [`Google Search ("${query}")`, `Google Scholar ("${query}")`],
+      links: externalMockLinks(query, doc),
+      text:
+        "Mình nhận ra đây là câu hỏi cần kiến thức ngoài slide, nhưng backend tra cứu nguồn chưa kết nối nên chưa thể tạo câu trả lời có kiểm chứng. Bạn có thể mở các nguồn tìm kiếm bên dưới hoặc khởi động lại backend."
+    };
+  }
   if (scope.scope === "out_of_scope") {
     return {
       role: "assistant",
@@ -440,8 +459,8 @@ function App() {
       const data = await response.json();
       const assistantMessage = {
         role: "assistant",
-        mode: data.mode === "live" ? "live" : "rule",
-        status: data.mode === "live" ? "🟢 LIVE API" : "🟡 RULE",
+        mode: ["live", "external"].includes(data.mode) ? "live" : "rule",
+        status: data.mode === "external" ? "🌐 WEB GROUNDED" : data.mode === "live" ? "🟢 LIVE API" : "🟡 RULE",
         confidence: data.confidence === "cao" ? 95 : 75,
         model: data.model,
         scope: {
