@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import {
@@ -110,6 +112,30 @@ function selectedTextWithoutWatermark(selection, textLayer) {
   }
 
   return [...new Set(pieces)].join(" ").replace(/\s+/g, " ").trim();
+}
+
+function splitBatchQueries(text) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length < 2) return [text.trim()];
+  if (lines.some((line) => line.length > 180)) return [text.trim()];
+  return lines;
+}
+
+function shouldUseSelectionForQuery(query, forcedScopeStr, selectedText) {
+  if (!selectedText.trim()) return false;
+  if (forcedScopeStr === "selected_text") return true;
+  const text = normalize(query);
+  if (/^(hay khong|co khong|dung khong|phai khong|duoc khong|khong)\??$/.test(text)) return false;
+  if (!/(trang|slide|tai lieu|file|ca bai|toan bo|ca buoi|buoi|day)\b/.test(text)) return true;
+  return /\b(doan boi den|doan nay|phan nay|cho nay|doan tren|noi dung nay)\b/.test(text);
+}
+
+function inferredSelectionScopeForQuery(query, forcedScopeStr, selectedText) {
+  if (!shouldUseSelectionForQuery(query, forcedScopeStr, selectedText)) return forcedScopeStr;
+  return forcedScopeStr || "selected_text";
 }
 
 function externalMockLinks(query, doc) {
@@ -415,10 +441,39 @@ function App() {
     if (!cleanQuery || isLoading) return;
 
     setIsChatCollapsed(false);
+    const batchQueries = forcedScopeStr ? [cleanQuery] : splitBatchQueries(cleanQuery);
+    if (batchQueries.length > 1) {
+      setQuestion("");
+      for (const queryItem of batchQueries) {
+        await askSingle(queryItem, null);
+      }
+      return;
+    }
+
+    await askSingle(cleanQuery, forcedScopeStr);
+  }
+
+  async function askSingle(cleanQuery, forcedScopeStr = null) {
+    const loadingId = `loading-${Date.now()}`;
+    const effectiveSelection = shouldUseSelectionForQuery(cleanQuery, forcedScopeStr, selectedText) ? selectedText : "";
+    const effectiveForcedScope = inferredSelectionScopeForQuery(cleanQuery, forcedScopeStr, selectedText);
+
     setQuestion("");
     setIsLoading(true);
 
-    setMessages((current) => [...current, { role: "user", text: cleanQuery }]);
+    setMessages((current) => [
+      ...current,
+      { role: "user", text: cleanQuery, selection: effectiveSelection },
+      {
+        id: loadingId,
+        role: "assistant",
+        mode: "loading",
+        status: "Đang xử lý",
+        scope: { label: "Đang đọc nguồn" },
+        sources: [],
+        text: "VLearn Tutor đang đọc slide và kiểm tra trích dẫn..."
+      }
+    ]);
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/v1/companion/chat`, {
@@ -428,8 +483,8 @@ function App() {
           query: cleanQuery,
           current_day: doc.dayId || "day01",
           current_page: page,
-          selection: selectedText,
-          forced_scope: forcedScopeStr
+          selection: effectiveSelection,
+          forced_scope: effectiveForcedScope
         })
       });
 
@@ -456,13 +511,13 @@ function App() {
         ta_handoff_suggested: data.ta_handoff_suggested
       };
 
-      setMessages((current) => [...current, assistantMessage]);
+      setMessages((current) => current.map((message) => (message.id === loadingId ? assistantMessage : message)));
     } catch (error) {
       console.warn("Backend API call failed, falling back to local client logic:", error);
-      const scope = detectScopeLocal(cleanQuery, Boolean(selectedText.trim()));
-      const sources = retrieveLocal(cleanQuery, scope, doc, slide, selectedText);
+      const scope = detectScopeLocal(cleanQuery, Boolean(effectiveSelection.trim()));
+      const sources = retrieveLocal(cleanQuery, scope, doc, slide, effectiveSelection);
       const assistant = buildTutorAnswerLocal(cleanQuery, scope, sources, doc, slide);
-      setMessages((current) => [...current, assistant]);
+      setMessages((current) => current.map((message) => (message.id === loadingId ? assistant : message)));
     } finally {
       setIsLoading(false);
     }
@@ -883,13 +938,36 @@ function App() {
               messages.map((message, index) => (
                 <div className={`message ${message.role}`} key={`${message.role}-${index}`}>
                   {message.role === "user" ? (
-                    <p>{message.text}</p>
+                    <div className="message-body">
+                      <p>{message.text}</p>
+                      {message.selection ? (
+                        <div className="user-selection-preview">
+                          <span>Đoạn bôi đen</span>
+                          <p>{message.selection}</p>
+                        </div>
+                      ) : null}
+                    </div>
                   ) : (
                     <>
                       <div className="message-meta">
                         <span>{message.scope?.label}</span>
                       </div>
-                      <div style={{ whiteSpace: "pre-wrap" }}>{message.text}</div>
+                      {message.mode === "loading" ? (
+                        <div className="message-body loading-message">
+                          <span>{message.text}</span>
+                          <span className="typing-dots" aria-hidden="true">
+                            <span />
+                            <span />
+                            <span />
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="message-body markdown-body">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {message.text}
+                          </ReactMarkdown>
+                        </div>
+                      )}
                       {message.sources?.length > 0 ? (() => {
                         const renderedSources = message.sources.map((source) => {
                           const pageMatch = source.match(/Trang\s+(\d+)/i);
@@ -1006,6 +1084,7 @@ function App() {
                         </div>
                       ) : null}
 
+                      {message.mode !== "loading" ? (
                       <div className="ta-action-row" style={{ marginTop: "10px" }}>
                         <button
                           type="button"
@@ -1029,6 +1108,7 @@ function App() {
                           Chuyển TA (Telegram Push)
                         </button>
                       </div>
+                      ) : null}
                     </>
                   )}
                 </div>
@@ -1044,14 +1124,31 @@ function App() {
               ask(question);
             }}
           >
+            {selectedText.trim() ? (
+              <div className="active-selection-chip">
+                <Highlighter size={13} />
+                <span>Đang có đoạn bôi đen</span>
+                <button type="button" onClick={() => setSelectedText("")}>
+                  Xoá
+                </button>
+              </div>
+            ) : null}
             <div className="input-shell">
               <Search size={16} />
-              <input
+              <textarea
                 value={question}
                 onChange={(event) => setQuestion(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    ask(question);
+                  }
+                }}
                 placeholder="Nhập câu hỏi hoặc hỏi theo slide..."
+                rows={1}
+                disabled={isLoading}
               />
-              <button type="submit" aria-label="Gửi câu hỏi" disabled={isLoading}>
+              <button type="submit" aria-label="Gửi câu hỏi" disabled={isLoading || !question.trim()}>
                 <Send size={16} />
               </button>
             </div>
