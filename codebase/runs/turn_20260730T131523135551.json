@@ -1,0 +1,25 @@
+{
+  "created_at": "2026-07-30T13:15:23",
+  "question": "Tóm tắt nội dung chính trong slide này",
+  "has_selection": false,
+  "intent": "summary",
+  "scope": "current_page",
+  "scope_label": "Trang hiện tại",
+  "confidence": "cao",
+  "reason": "Câu hỏi nói 'trang này' nên hiểu là trang 1 bạn đang mở.",
+  "target_day": "day01",
+  "target_page": 1,
+  "page_range": null,
+  "retrieved_chunk_ids": [
+    "day01_302.pdf#p1"
+  ],
+  "sources": [
+    "Trang 1"
+  ],
+  "untrusted_found": [],
+  "mode": "live",
+  "model": "gemini-3.5-flash",
+  "latency_ms": 6225,
+  "error": null,
+  "response_text": "Tổng quan: Slide giới thiệu ngày học đầu tiên của chương trình \"AI IN ACTION\" tập trung vào chủ đề nền tảng về AI và LLM [Trang 1].\n\nÝ chính:\n1. Xác định chủ đề của Day 1 là \"# AI & LLM Foundation\" (Nền tảng AI & LLM) [Trang 1].\n2. Đặt ra câu hỏi cốt lõi về bản chất hoạt động bên trong của AI mà chúng ta đang sử dụng hàng ngày [Trang 1].\n3. Giới thiệu người hướng dẫn là giảng viên [Trang 1].\n\nKeyword cần nhớ: AI IN ACTION, AI & LLM Foundation [Trang 1]."
+}
