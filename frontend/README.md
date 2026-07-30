@@ -1,6 +1,6 @@
 # Frontend Setup Guide
 
-Frontend của VLearn Smart Contextual Companion là ứng dụng React chạy bằng Vite. UI hiển thị slide mock, chat companion, citation, trạng thái pipeline và luồng chuyển TA. Ứng dụng gọi backend FastAPI tại `http://localhost:8000`.
+Frontend của VLearn Smart Contextual Companion là ứng dụng React chạy bằng Vite. UI render PDF học liệu thật, hỗ trợ chọn văn bản, chat theo ngữ cảnh, citation và luồng chuyển TA. Ứng dụng gọi backend FastAPI tại `http://localhost:8000`.
 
 ## Yêu cầu
 
@@ -66,7 +66,7 @@ frontend/
     main.jsx          # React entrypoint
     App.jsx           # UI và logic gọi API
     styles.css        # style toàn app
-    data/slides.js    # slide/document mock hiển thị trong UI
+    data/slides.js    # metadata tài liệu và demo prompts hiển thị trong UI
 ```
 
 ## API backend đang dùng

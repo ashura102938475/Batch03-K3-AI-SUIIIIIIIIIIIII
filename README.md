@@ -25,11 +25,11 @@ backend/
   app.py                 # Streamlit prototype
   companion/             # intent, scope, retrieval, answer, trace
   providers/             # wrapper các LLM provider
-  corpus/                # slide/corpus mock
+  corpus/                # corpus fallback khi sample data không khả dụng
   eval/                  # golden set và kết quả đánh giá
 frontend/
   src/App.jsx            # UI chính
-  src/data/slides.js     # dữ liệu slide mock cho UI
+  src/data/slides.js     # metadata tài liệu và demo prompts cho UI
 data/                    # data course được cấp, không commit ra ngoài
 docs/, spec.md           # tài liệu sản phẩm và AI spec
 ```
