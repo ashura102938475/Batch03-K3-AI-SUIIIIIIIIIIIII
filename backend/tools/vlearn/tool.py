@@ -48,11 +48,14 @@ def search_corpus_tool(query: str, scope: str = "current_page", current_day: str
     }
 
 
-def escalate_ta_tool(reason: str, student_query: str) -> dict[str, Any]:
-    """Escalate unresolved query or low-confidence response to TA."""
-    return {
-        "status": "escalated",
-        "reason": reason,
-        "query": student_query,
-        "message": "Đã ghi nhận yêu cầu chuyển TA.",
-    }
+from companion.ta_notifier import notify_ta_channel
+
+
+def escalate_ta_tool(reason: str, student_query: str, current_day: str = "day01", current_page: int = 1) -> dict[str, Any]:
+    """Escalate unresolved query or low-confidence response to TA channel via Webhook & local log."""
+    return notify_ta_channel(
+        reason=reason,
+        student_query=student_query,
+        current_day=current_day,
+        current_page=current_page,
+    )

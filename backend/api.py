@@ -20,6 +20,7 @@ load_lab_env(ROOT)
 from companion.answer import generate
 from companion.retriever import load_corpus, search as corpus_search, transcript_path, Chunk
 from companion.scope import detect_intent, detect_scope
+from companion.ta_notifier import notify_ta_channel
 from companion.trace import build_record, write_turn_trace
 from providers import make_provider
 
@@ -366,11 +367,18 @@ def full_chat_pipeline(req: ChatPipelineRequest) -> ChatPipelineResponse:
 # 6. ESCALATE TA
 @app.post("/api/v1/escalate-ta", response_model=TAHandoffResponse)
 def escalate_ta_api(req: TAHandoffRequest) -> TAHandoffResponse:
-    return TAHandoffResponse(
-        status="escalated",
+    res = notify_ta_channel(
         reason=req.reason,
         student_query=req.student_query,
-        message="Đã ghi nhận yêu cầu chuyển TA.",
+        current_day=req.current_day,
+    )
+    return TAHandoffResponse(
+        status=res["status"],
+        pushed=res["pushed"],
+        delivery_status=res["delivery_status"],
+        reason=req.reason,
+        student_query=req.student_query,
+        message=res["message"],
     )
 
 
