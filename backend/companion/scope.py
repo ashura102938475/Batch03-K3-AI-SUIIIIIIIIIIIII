@@ -18,7 +18,8 @@ from companion.text import fold_text, has_any
 # ----------------------------------------------------------------- intent
 SUMMARY_SIGNALS = (
     "tom tat", "tom gon", "tong hop", "summary", "y chinh", "noi dung chinh",
-    "noi dung quan trong", "keyword", "tu khoa", "can hoc", "on lai", "ghi chu", "note",
+    "noi dung quan trong", "nhung phan chinh", "cac phan chinh", "thao luan chinh",
+    "keyword", "tu khoa", "can hoc", "on lai", "ghi chu", "note",
 )
 EXPLAIN_SIGNALS = ("giai thich", "la gi", "nghia la", "tai sao", "vi sao", "vi du", "khac nhau", "so sanh")
 LOGISTICS_SIGNALS = (
@@ -26,6 +27,14 @@ LOGISTICS_SIGNALS = (
     "tai file", "tai tai lieu", "download", "tai ve", "link repo", "dang ky",
 )
 OUT_OF_SCOPE_SIGNALS = ("api key", "apikey", "password", "mat khau", "admin", "token he thong", "database", "credential")
+EXTERNAL_SUPPORT_SIGNALS = (
+    "cai dat pytorch", "pytorch tren macos", "loi cai dat thu vien",
+    "sua may tinh", "cau hinh wifi",
+)
+PROHIBITED_ASSESSMENT_SIGNALS = (
+    "dap an bai kiem tra", "dap an quiz", "chi can dap an", "lam ho bai kiem tra",
+    "lam ho bai tap nop", "giai ho bai thi", "tra loi ho bai thi",
+)
 PROMPT_ATTACK_SIGNALS = (
     "bo qua huong dan", "bo qua moi", "ignore previous", "ignore all", "system prompt",
     "prompt he thong", "ma hoa base64", "base64 toan bo", "dong vai", "quen het luat",
@@ -80,7 +89,7 @@ def detect_intent(query: str) -> str:
     folded = fold_text(query)
     if has_any(folded, PROMPT_ATTACK_SIGNALS):
         return "prompt_attack"
-    if has_any(folded, OUT_OF_SCOPE_SIGNALS):
+    if has_any(folded, OUT_OF_SCOPE_SIGNALS + EXTERNAL_SUPPORT_SIGNALS + PROHIBITED_ASSESSMENT_SIGNALS):
         return "out_of_scope"
     if has_any(folded, LOGISTICS_SIGNALS):
         return "logistics"
@@ -89,6 +98,10 @@ def detect_intent(query: str) -> str:
     if has_any(folded, EXPLAIN_SIGNALS):
         return "explain"
     return "explain"
+
+
+def is_prohibited_assessment_request(query: str) -> bool:
+    return has_any(fold_text(query), PROHIBITED_ASSESSMENT_SIGNALS)
 
 
 def detect_scope(query: str, *, has_selection: bool, current_day: str, current_page: int) -> ScopeResult:
@@ -106,7 +119,11 @@ def detect_scope(query: str, *, has_selection: bool, current_day: str, current_p
             scope="out_of_scope",
             confidence="cao",
             reason={
-                "out_of_scope": "Câu hỏi đòi thông tin hệ thống, không nằm trong học liệu.",
+                "out_of_scope": (
+                    "Yêu cầu này là đáp án cho bài được chấm điểm nên Tutor không được làm thay."
+                    if is_prohibited_assessment_request(query)
+                    else "Câu hỏi không thuộc nội dung học liệu Tutor có thể xác minh."
+                ),
                 "logistics": "Câu hỏi về logistics khoá học, không nằm trong học liệu.",
                 "prompt_attack": "Câu hỏi có dấu hiệu can thiệp hướng dẫn hệ thống.",
             }[intent],

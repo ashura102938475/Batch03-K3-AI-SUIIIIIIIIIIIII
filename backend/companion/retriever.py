@@ -1,13 +1,4 @@
-"""Lấy đúng chunk theo phạm vi đã nhận diện.
-
-Phỏng theo `tools/policy/tool.py` của Day04 Lab: parse YAML frontmatter, chia section
-theo heading `## `, chấm điểm bằng term-overlap có trọng số, và giữ nguyên trust
-boundary tách dòng đáng ngờ ra khỏi phần facts.
-
-Nguồn:
-  - Slide     : PDF (`*.pdf`) & Markdown (`*.md`) trong `backend/corpus/`
-  - Transcript: `transcript-*.md` trong `backend/corpus/` hoặc từ data pack.
-"""
+"""Load and retrieve the real VLearn sample corpus by learning scope."""
 from __future__ import annotations
 
 import os
@@ -22,10 +13,27 @@ from companion.text import fold_text, terms
 
 ROOT = Path(__file__).resolve().parents[1]
 CORPUS_DIR = ROOT / "corpus"
-DEFAULT_TRANSCRIPT = ROOT.parent / "data" / "vlearn-pack" / "transcript" / "transcript-04-clean.md"
+DATA_PACK_DIR = ROOT.parent / "data" / "vlearn-pack"
+DEFAULT_SLIDES_DIR = DATA_PACK_DIR / "slides"
+DEFAULT_TRANSCRIPT_DIR = DATA_PACK_DIR / "transcript"
+DEFAULT_TRANSCRIPT = DEFAULT_TRANSCRIPT_DIR / "transcript-04-clean.md"
 
-TRANSCRIPT_DAY = "day01"
 TRANSCRIPT_CODE_PATTERN = re.compile(r"\[(T\d{2}-\d{3})\]")
+SUMMARY_QUERY_MARKERS = (
+    "tom tat", "tom gon", "tong hop", "summary", "y chinh", "noi dung chinh",
+    "phan chinh", "keyword", "tu khoa", "ghi chu", "note", "on tap",
+)
+
+# The clean transcript filenames are source IDs, not course day numbers.
+# This mapping follows data/vlearn-pack/transcript/README.md.
+TRANSCRIPT_DAY_BY_FILE = {
+    "transcript-01-clean.md": "day02",
+    "transcript-02-clean.md": "day02",
+    "transcript-03-clean.md": "day02",
+    "transcript-04-clean.md": "day01",
+    "transcript-05-clean.md": "day02",
+    "transcript-06-clean.md": "day01",
+}
 
 SUSPICIOUS_MARKERS = ("assistant:", "system:", "developer:", "ignore ", "bo qua", "tro ly:", "quen het")
 
@@ -66,14 +74,20 @@ def _parse_frontmatter(raw: str) -> tuple[dict[str, Any], str]:
     return {}, raw.strip()
 
 
-def load_slides() -> list[Chunk]:
-    """Load slides from Markdown and PDF files in CORPUS_DIR."""
-    chunks: list[Chunk] = []
-    if not CORPUS_DIR.exists():
-        return chunks
+def _day_code(value: str | int) -> str:
+    return f"day{int(value):02d}"
 
-    # 1. Parse markdown slides
-    for path in sorted(CORPUS_DIR.glob("*.md")):
+
+def slides_dir() -> Path:
+    override = os.getenv("VLEARN_SLIDES_DIR", "").strip()
+    return Path(override).expanduser() if override else DEFAULT_SLIDES_DIR
+
+
+def load_slides() -> list[Chunk]:
+    """Load local markdown fixtures and the real PDF sample decks."""
+    chunks: list[Chunk] = []
+
+    for path in sorted(CORPUS_DIR.glob("*.md")) if CORPUS_DIR.exists() else []:
         if path.name.startswith("transcript") or path.name.lower() == "readme.md":
             continue
         meta, body = _parse_frontmatter(path.read_text(encoding="utf-8"))
@@ -109,14 +123,20 @@ def load_slides() -> list[Chunk]:
                 buffer.append(line)
         flush()
 
-    # 2. Parse PDF slides
-    for path in sorted(CORPUS_DIR.glob("*.pdf")):
+    pdf_paths: dict[Path, Path] = {}
+    for directory in (CORPUS_DIR, slides_dir()):
+        if directory.exists():
+            for path in directory.glob("*.pdf"):
+                pdf_paths[path.resolve()] = path
+
+    for path in sorted(pdf_paths.values(), key=lambda item: item.name):
         doc_id = path.name
         title = path.stem
-        day_match = re.search(r"d(\d+)", path.name, re.IGNORECASE)
-        day = f"day0{day_match.group(1)}" if day_match else "day01"
+        day_match = re.search(r"(?:^|[^a-z])d(?:ay)?[-_ ]?0?(\d+)", path.name, re.IGNORECASE)
+        day = _day_code(day_match.group(1)) if day_match else "day01"
         try:
             from pypdf import PdfReader
+
             reader = PdfReader(path)
             for page_idx, page in enumerate(reader.pages, start=1):
                 raw_text = page.extract_text() or ""
@@ -128,8 +148,8 @@ def load_slides() -> list[Chunk]:
                     day=day, doc_id=doc_id, title=title, page=page_idx,
                     cite=f"Trang {page_idx}", text=facts, kind="slide", untrusted=untrusted,
                 ))
-        except Exception:
-            pass
+        except Exception as exc:
+            raise RuntimeError(f"Cannot parse slide deck {path}: {exc}") from exc
 
     return chunks
 
@@ -139,16 +159,34 @@ def transcript_path() -> Path:
     return Path(override).expanduser() if override else DEFAULT_TRANSCRIPT
 
 
-def load_transcript() -> list[Chunk]:
-    """Đọc tất cả transcript trong CORPUS_DIR hoặc transcript_path()."""
-    chunks: list[Chunk] = []
-    paths: list[Path] = sorted(CORPUS_DIR.glob("transcript-*.md"))
-    if not paths and transcript_path().exists():
-        paths = [transcript_path()]
+def transcript_dir() -> Path:
+    override = os.getenv("VLEARN_TRANSCRIPT_DIR", "").strip()
+    return Path(override).expanduser() if override else DEFAULT_TRANSCRIPT_DIR
 
-    for path in paths:
-        day_match = re.search(r"transcript-0?(\d+)", path.name)
-        day_code = f"day0{day_match.group(1)}" if day_match else TRANSCRIPT_DAY
+
+def transcript_paths() -> list[Path]:
+    file_override = os.getenv("VLEARN_TRANSCRIPT_PATH", "").strip()
+    if file_override:
+        path = Path(file_override).expanduser()
+        return [path] if path.exists() else []
+
+    paths: dict[Path, Path] = {}
+    for directory in (CORPUS_DIR, transcript_dir()):
+        if directory.exists():
+            for path in directory.glob("transcript-*.md"):
+                paths[path.resolve()] = path
+    return sorted(paths.values(), key=lambda item: item.name)
+
+
+def load_transcript() -> list[Chunk]:
+    """Load all clean transcripts and map them to the matching course day."""
+    chunks: list[Chunk] = []
+
+    for path in transcript_paths():
+        day_code = TRANSCRIPT_DAY_BY_FILE.get(path.name)
+        if day_code is None:
+            day_match = re.search(r"transcript-0?(\d+)", path.name)
+            day_code = _day_code(day_match.group(1)) if day_match else "day01"
 
         current_code: str | None = None
         buffer: list[str] = []
@@ -185,6 +223,24 @@ def available_days(chunks: list[Chunk]) -> set[str]:
     return {chunk.day for chunk in chunks}
 
 
+def _rank(query: str, pool: list[Chunk]) -> list[Chunk]:
+    query_terms = terms(query)
+    for chunk in pool:
+        title_terms = terms(f"{chunk.title} {chunk.doc_id}")
+        body_terms = terms(chunk.text)
+        chunk.score = len(query_terms & body_terms) + 3 * len(query_terms & title_terms)
+    return sorted(pool, key=lambda chunk: (-chunk.score, chunk.page is None, chunk.page or 0))
+
+
+def _coverage_sample(chunks: list[Chunk], limit: int) -> list[Chunk]:
+    if len(chunks) <= limit:
+        return list(chunks)
+    if limit <= 1:
+        return [chunks[0]]
+    indexes = {round(index * (len(chunks) - 1) / (limit - 1)) for index in range(limit)}
+    return [chunks[index] for index in sorted(indexes)]
+
+
 def search(query: str, scope_result, chunks: list[Chunk], *, selection: str = "", top_k: int = 6) -> list[Chunk]:
     scope = scope_result.scope
 
@@ -197,7 +253,7 @@ def search(query: str, scope_result, chunks: list[Chunk], *, selection: str = ""
         return [Chunk(
             chunk_id="selection", day=scope_result.target_day or "", doc_id="đoạn bôi đen",
             title="Đoạn bạn đang bôi đen", page=scope_result.target_page,
-            cite=f"Trang {scope_result.target_page} · đoạn bôi đen",
+            cite=f"Trang {scope_result.target_page}",
             text=selection.strip(), kind="selection", score=99,
         )]
 
@@ -217,14 +273,22 @@ def search(query: str, scope_result, chunks: list[Chunk], *, selection: str = ""
     if not pool:
         return []
 
-    query_terms = terms(query)
-    for chunk in pool:
-        title_terms = terms(f"{chunk.title} {chunk.doc_id}")
-        body_terms = terms(chunk.text)
-        chunk.score = len(query_terms & body_terms) + 3 * len(query_terms & title_terms)
+    folded_query = fold_text(query)
+    is_summary = any(marker in folded_query for marker in SUMMARY_QUERY_MARKERS)
 
-    if all(chunk.score == 0 for chunk in pool):
-        ordered = sorted(pool, key=lambda c: (c.page is None, c.page or 0))
-    else:
-        ordered = sorted(pool, key=lambda c: c.score, reverse=True)
+    # Explicit page scope must use that page, even when the question is generic.
+    if scope in ("current_page", "ambiguous"):
+        return sorted(pool, key=lambda chunk: chunk.doc_id)
+
+    if is_summary and scope == "current_document":
+        return sorted(pool, key=lambda chunk: chunk.page or 0)
+
+    if is_summary and scope == "whole_session":
+        slides = sorted((c for c in pool if c.kind == "slide"), key=lambda chunk: chunk.page or 0)
+        transcripts = sorted((c for c in pool if c.kind == "transcript"), key=lambda chunk: chunk.chunk_id)
+        return slides + _coverage_sample(transcripts, 10)
+
+    ordered = _rank(query, pool)
+    if not ordered or ordered[0].score == 0:
+        return []
     return ordered[:top_k]

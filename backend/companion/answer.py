@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import os
+import re
 import time
 from typing import Any
 
 from companion.retriever import Chunk
+from companion.scope import is_prohibited_assessment_request
 from companion.tavily_search import tavily_search_external_citations
 
 SYSTEM_PROMPT = """Bạn là VLearn Tutor — trợ lý học tập bám ngữ cảnh học liệu của khoá AI Thực Chiến.
@@ -34,6 +36,10 @@ REFUSAL_OUT_OF_SCOPE = """Mình chỉ trả lời được trong phạm vi học
 Những thứ như thông tin hệ thống, khoá/mật khẩu, hoặc logistics khoá học (deadline, cách nộp bài, link tài liệu) cần lấy từ nguồn chính thức — bạn bấm **Chuyển TA** bên dưới để hỏi người phụ trách nhé.
 
 Còn nếu bạn muốn hỏi về nội dung slide đang mở thì mình sẵn sàng."""
+
+REFUSAL_ASSESSMENT = """Mình không thể đưa đáp án hoặc làm thay một bài đang được chấm điểm.
+
+Mình có thể giúp bạn học theo cách an toàn hơn: giải thích khái niệm liên quan trong slide, đưa gợi ý từng bước, hoặc tạo một câu tương tự để bạn tự luyện."""
 
 
 CLARIFY_QUESTION = """Câu hỏi của bạn chưa nói rõ phạm vi, mà trả lời sai phạm vi thì bạn sẽ nhận được nội dung không liên quan.
@@ -65,8 +71,23 @@ def build_sources_block(chunks: list[Chunk]) -> str:
 
 
 def build_messages(query: str, scope_result, chunks: list[Chunk]) -> list[dict[str, str]]:
+    coverage_instruction = ""
+    if scope_result.scope == "current_document":
+        coverage_instruction = (
+            "\nYÊU CẦU ĐỘ PHỦ: Tóm tắt trải đều phần đầu, giữa và cuối tài liệu; "
+            "dùng ít nhất 3 citation khác nhau nếu nguồn cho phép.\n"
+        )
+    elif scope_result.scope == "whole_session":
+        source_kinds = {chunk.kind for chunk in chunks}
+        coverage_instruction = (
+            "\nYÊU CẦU ĐỘ PHỦ: Tổng hợp các phần chính của toàn buổi và dùng ít nhất 3 citation khác nhau. "
+            "Nếu NGUỒN có cả slide và transcript, phải dùng ít nhất một citation từ mỗi loại.\n"
+            if {"slide", "transcript"}.issubset(source_kinds)
+            else "\nYÊU CẦU ĐỘ PHỦ: Tổng hợp các phần chính của toàn buổi và dùng ít nhất 3 citation khác nhau.\n"
+        )
     user_block = (
         f"PHẠM VI ĐÃ NHẬN DIỆN: {scope_result.label} ({scope_result.reason})\n\n"
+        f"{coverage_instruction}"
         f"NGUỒN:\n{build_sources_block(chunks)}\n\n"
         f"CÂU HỎI CỦA HỌC VIÊN: {query}"
     )
@@ -86,12 +107,82 @@ def _mock_answer(query: str, chunks: list[Chunk]) -> str:
     return "\n".join(lines)
 
 
+BRACKET_CITATION_PATTERN = re.compile(r"\[([^\[\]]+)\]")
+PAGE_PART_PATTERN = re.compile(r"^(\d+)(?:\s*-\s*(\d+))?$")
+TRANSCRIPT_CITATION_PATTERN = re.compile(r"^T\d{2}-\d{3}$", re.IGNORECASE)
+EXTERNAL_CONTEXT_SIGNALS = (
+    "kiến thức ngoài", "nguồn ngoài", "tham khảo thêm", "mở rộng thêm",
+    "thông tin mới nhất", "tài liệu bên ngoài",
+)
+
+
+def _wants_external_context(query: str) -> bool:
+    folded = query.casefold()
+    return any(signal in folded for signal in EXTERNAL_CONTEXT_SIGNALS)
+
+
+def _normalize_citation_label(label: str) -> str:
+    normalized = label.replace("\u00a0", " ").replace("\u202f", " ")
+    for hyphen in ("\u2010", "\u2011", "\u2012", "\u2013", "\u2014", "\u2212"):
+        normalized = normalized.replace(hyphen, "-")
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _validate_citations(text: str, chunks: list[Chunk]) -> tuple[list[str], list[str]]:
+    allowed = {chunk.cite for chunk in chunks}
+    valid: list[str] = []
+    invalid: list[str] = []
+
+    for raw_label in BRACKET_CITATION_PATTERN.findall(text):
+        label = _normalize_citation_label(raw_label)
+        transcript_match = TRANSCRIPT_CITATION_PATTERN.match(label)
+        if transcript_match:
+            canonical = label.upper()
+            (valid if canonical in allowed else invalid).append(canonical)
+            continue
+
+        if not label.casefold().startswith("trang "):
+            continue
+
+        page_list = re.sub(r"\s*·\s*đoạn bôi đen\s*$", "", label[6:], flags=re.IGNORECASE)
+        page_list = re.sub(r"\s+và\s+", ",", page_list, flags=re.IGNORECASE)
+        parts = [part.strip() for part in re.split(r"[,;]", page_list) if part.strip()]
+        expanded: list[str] = []
+        malformed = False
+        for part in parts:
+            page_match = PAGE_PART_PATTERN.match(part)
+            if not page_match:
+                malformed = True
+                break
+            start = int(page_match.group(1))
+            end = int(page_match.group(2) or start)
+            start, end = sorted((start, end))
+            if end - start > 50:
+                malformed = True
+                break
+            expanded.extend(f"Trang {page}" for page in range(start, end + 1))
+
+        if malformed or not expanded:
+            invalid.append(label)
+            continue
+        unsupported = [cite for cite in expanded if cite not in allowed]
+        if unsupported:
+            invalid.extend(unsupported)
+        else:
+            valid.extend(expanded)
+
+    return list(dict.fromkeys(valid)), list(dict.fromkeys(invalid))
+
+
 def generate(query: str, scope_result, chunks: list[Chunk], *, provider=None, model: str | None = None, include_external_citations: bool = True) -> dict[str, Any]:
     """Trả dict thống nhất cho UI và eval (CP3), hỗ trợ internal & Tavily external citations."""
     result: dict[str, Any] = {
         "text": "",
-        "sources": [c.cite for c in chunks],
+        "sources": [],
+        "retrieved_sources": [c.cite for c in chunks],
         "external_sources": [],
+        "invalid_citations": [],
+        "citation_repaired": False,
         "untrusted_found": [line for c in chunks for line in c.untrusted],
         "mode": "rule",          # rule | live | mock
         "latency_ms": 0,
@@ -101,7 +192,7 @@ def generate(query: str, scope_result, chunks: list[Chunk], *, provider=None, mo
 
     # Ngoài phạm vi -> từ chối hữu ích
     if scope_result.scope == "out_of_scope":
-        result["text"] = REFUSAL_OUT_OF_SCOPE
+        result["text"] = REFUSAL_ASSESSMENT if is_prohibited_assessment_request(query) else REFUSAL_OUT_OF_SCOPE
         return result
 
     # Mơ hồ -> HỎI LẠI
@@ -117,6 +208,7 @@ def generate(query: str, scope_result, chunks: list[Chunk], *, provider=None, mo
 
     if provider is None:
         result["text"] = _mock_answer(query, chunks)
+        result["sources"] = [c.cite for c in chunks]
         result["mode"] = "mock"
         result["error"] = "Chưa có API key — đang chạy chế độ mock."
         return result
@@ -129,8 +221,51 @@ def generate(query: str, scope_result, chunks: list[Chunk], *, provider=None, mo
         result["mode"] = "live"
         result["model"] = model or getattr(provider, "default_model", None)
 
-        # Tavily External Citations (optional)
-        if include_external_citations and os.getenv("TAVILY_API_KEY"):
+        valid_citations, invalid_citations = _validate_citations(base_text, chunks)
+        if invalid_citations or not valid_citations:
+            allowed_labels = ", ".join(f"[{chunk.cite}]" for chunk in chunks)
+            repair_messages = messages + [
+                {"role": "assistant", "content": base_text},
+                {
+                    "role": "user",
+                    "content": (
+                        "Giữ nguyên nội dung và chỉ sửa citation. Mỗi ý phải dùng citation trong danh sách "
+                        f"sau, không dùng placeholder hoặc nguồn khác: {allowed_labels}. "
+                        "Trả lại toàn bộ câu trả lời đã sửa."
+                    ),
+                },
+            ]
+            try:
+                repaired = provider.complete(repair_messages, tools=None, model=model, temperature=0.0)
+                repaired_text = (repaired.text or "").strip()
+                repaired_valid, repaired_invalid = _validate_citations(repaired_text, chunks)
+                if repaired_text and repaired_valid and not repaired_invalid:
+                    base_text = repaired_text
+                    valid_citations = repaired_valid
+                    invalid_citations = []
+                    result["citation_repaired"] = True
+            except Exception:
+                pass
+
+        result["sources"] = valid_citations
+        result["invalid_citations"] = invalid_citations
+        if invalid_citations or not valid_citations:
+            result["mode"] = "guardrail"
+            result["sources"] = []
+            result["text"] = (
+                "Mình chưa thể xác minh các trích dẫn trong câu trả lời vừa tạo nên không gửi nội dung đó "
+                "để tránh làm bạn học sai. Bạn có thể thử lại hoặc bấm **Chuyển TA**."
+            )
+            result["error"] = (
+                f"Invalid citations generated: {', '.join(invalid_citations)}"
+                if invalid_citations
+                else "The model returned no parseable internal citation."
+            )
+            result["latency_ms"] = int((time.perf_counter() - started) * 1000)
+            return result
+
+        # External material is opt-in, not appended to every grounded answer.
+        if include_external_citations and os.getenv("TAVILY_API_KEY") and _wants_external_context(query):
             ext_results = tavily_search_external_citations(query, max_results=3)
             if ext_results:
                 result["external_sources"] = ext_results
@@ -143,6 +278,7 @@ def generate(query: str, scope_result, chunks: list[Chunk], *, provider=None, mo
 
     except Exception as exc:
         result["text"] = _mock_answer(query, chunks)
+        result["sources"] = [c.cite for c in chunks]
         result["mode"] = "mock"
         result["error"] = f"{type(exc).__name__}: {exc}"
     result["latency_ms"] = int((time.perf_counter() - started) * 1000)

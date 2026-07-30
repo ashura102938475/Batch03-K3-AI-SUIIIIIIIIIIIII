@@ -18,7 +18,7 @@ from env_loader import load_lab_env
 load_lab_env(ROOT)
 
 from companion.answer import generate
-from companion.retriever import load_corpus, search as corpus_search, transcript_path, Chunk
+from companion.retriever import Chunk, load_corpus, search as corpus_search, transcript_paths
 from companion.scope import detect_intent, detect_scope
 from companion.ta_notifier import notify_ta_channel
 from companion.trace import build_record, write_turn_trace
@@ -61,7 +61,7 @@ def get_active_provider(provider_name: str | None = None):
 # ===================================================================== SCHEMAS
 
 IntentType = Literal["summary", "explain", "logistics", "out_of_scope", "prompt_attack"]
-ScopeType = Literal["selected_text", "current_page", "current_document", "whole_session", "ambiguous"]
+ScopeType = Literal["selected_text", "current_page", "current_document", "whole_session", "ambiguous", "out_of_scope"]
 
 
 class DetectIntentRequest(BaseModel):
@@ -176,6 +176,8 @@ class TAHandoffRequest(BaseModel):
 
 class TAHandoffResponse(BaseModel):
     status: str
+    pushed: bool
+    delivery_status: str
     reason: str
     student_query: str
     message: str
@@ -188,12 +190,20 @@ class TAHandoffResponse(BaseModel):
 def health_check() -> dict[str, Any]:
     provider = get_active_provider()
     provider_type = provider.__class__.__name__.replace("Provider", "") if provider else "MOCK"
+    corpus_by_day = {
+        day: {
+            "slides": sum(1 for chunk in CORPUS if chunk.day == day and chunk.kind == "slide"),
+            "transcripts": sum(1 for chunk in CORPUS if chunk.day == day and chunk.kind == "transcript"),
+        }
+        for day in sorted({chunk.day for chunk in CORPUS})
+    }
     return {
         "status": "online",
         "active_provider": provider_type,
         "default_model": getattr(provider, "default_model", None) if provider else os.getenv("NVIDIA_MODEL"),
         "corpus_chunks_loaded": len(CORPUS),
-        "has_transcript": transcript_path().exists(),
+        "transcript_files_loaded": len(transcript_paths()),
+        "corpus_by_day": corpus_by_day,
     }
 
 
@@ -344,7 +354,12 @@ def full_chat_pipeline(req: ChatPipelineRequest) -> ChatPipelineResponse:
             ClarificationOption(label="Cả buổi học", scope="whole_session"),
         ]
 
-    suggest_ta = bool(scope_res.scope in ("out_of_scope", "ambiguous") or not chunks or answer["mode"] == "mock")
+    suggest_ta = bool(
+        scope_res.scope in ("out_of_scope", "ambiguous")
+        or not chunks
+        or answer["mode"] in ("mock", "guardrail")
+        or (chunks and not answer["sources"])
+    )
 
     return ChatPipelineResponse(
         query=req.query,
