@@ -194,3 +194,56 @@ def detect_scope(query: str, *, has_selection: bool, current_day: str, current_p
         target_day=current_day,
         target_page=current_page,
     )
+
+
+def detect_scope_llm(
+    query: str,
+    *,
+    has_selection: bool,
+    current_day: str,
+    current_page: int,
+    provider=None,
+    fast_model: str | None = None,
+) -> ScopeResult:
+    """Fast Intent & Scope Classification powered by 1B model tier (e.g., google/gemma-3-1b-it via NVIDIA NIM).
+
+    Falls back gracefully to deterministic rule-based detect_scope when offline or quota exceeded.
+    """
+    rule_res = detect_scope(query, has_selection=has_selection, current_day=current_day, current_page=current_page)
+    if provider is None:
+        return rule_res
+
+    target_model = fast_model or os.getenv("NVIDIA_FAST_MODEL", "google/gemma-3-1b-it")
+    system_prompt = (
+        "Bạn là bộ phân loại Intent & Scope siêu tốc cho VLearn Tutor.\n"
+        "Phân tích câu hỏi người học và trả về JSON chuẩn có định dạng:\n"
+        '{"intent": "summary"|"explain"|"logistics"|"out_of_scope"|"prompt_attack", '
+        '"scope": "selected_text"|"current_page"|"current_document"|"whole_session"|"ambiguous"|"out_of_scope", '
+        '"reason": "Giải thích ngắn 1 câu"}'
+    )
+    user_prompt = f"CÂU HỎI: \"{query}\"\nCONTEXT: Trang hiện tại = {current_page}, Day = {current_day}, Bôi đen = {has_selection}"
+
+    try:
+        response = provider.complete(
+            [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+            model=target_model,
+            temperature=0.0,
+        )
+        if response and response.text:
+            import json
+            data = json.loads(response.text.strip().lstrip("```json").rstrip("```").strip())
+            scope = data.get("scope", rule_res.scope)
+            if scope in SCOPE_LABELS:
+                return ScopeResult(
+                    scope=scope,
+                    confidence="cao",
+                    reason=data.get("reason", rule_res.reason),
+                    target_day=rule_res.target_day,
+                    target_page=rule_res.target_page,
+                    page_range=rule_res.page_range,
+                )
+    except Exception:
+        pass
+
+    return rule_res
+
