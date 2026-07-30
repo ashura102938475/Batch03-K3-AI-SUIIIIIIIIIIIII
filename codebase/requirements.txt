@@ -1,0 +1,6 @@
+# UI
+streamlit>=1.30.0
+# Provider dùng ở quyết định trung tâm (sinh câu trả lời có căn cứ)
+google-genai>=0.8.0
+# Parse frontmatter của corpus slide
+PyYAML>=6.0
