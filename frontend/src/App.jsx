@@ -461,16 +461,7 @@ function App() {
             })}
           </div>
 
-          <div className="metric-grid">
-            <div>
-              <strong>{evidenceMetrics.globalEmptyCitationRate}</strong>
-              <span>citation rỗng toàn chatlog</span>
-            </div>
-            <div>
-              <strong>{evidenceMetrics.noAccessRate}</strong>
-              <span>summary trả no-access</span>
-            </div>
-          </div>
+
         </aside>
 
         <section className="viewer-panel">
