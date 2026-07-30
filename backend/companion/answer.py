@@ -1,8 +1,4 @@
-"""Sinh câu trả lời có căn cứ — đây là chỗ gọi AI thật.
-
-Không dùng tool-calling: lát cắt này chỉ cần một lời gọi sinh văn bản sau khi phạm vi
-và nguồn đã được quyết định bằng luật. Bỏ được toàn bộ `chat.py`/`tools.yaml` của
-Day04 Lab và cái gotcha "tên tool phải sync qua 7 nơi".
+"""Sinh câu trả lời có căn cứ — hỗ trợ internal citations [Trang N] / [Txx-NNN] và Tavily external citations.
 """
 from __future__ import annotations
 
@@ -11,6 +7,7 @@ import time
 from typing import Any
 
 from companion.retriever import Chunk
+from companion.tavily_search import tavily_search_external_citations
 
 SYSTEM_PROMPT = """Bạn là VLearn Tutor — trợ lý học tập bám ngữ cảnh học liệu của khoá AI Thực Chiến.
 
@@ -80,10 +77,6 @@ def build_messages(query: str, scope_result, chunks: list[Chunk]) -> list[dict[s
 
 
 def _mock_answer(query: str, chunks: list[Chunk]) -> str:
-    """Fallback khi không gọi được LLM — ghép máy móc từ chunk đã retrieve.
-
-    Không thông minh, nhưng vẫn grounded và vẫn có citation nên demo không chết.
-    """
     lines = ["Tổng quan: dưới đây là nội dung trong phạm vi đã nhận diện.", "", "Ý chính:"]
     for index, chunk in enumerate(chunks[:5], start=1):
         snippet = " ".join(chunk.text.split())
@@ -93,11 +86,12 @@ def _mock_answer(query: str, chunks: list[Chunk]) -> str:
     return "\n".join(lines)
 
 
-def generate(query: str, scope_result, chunks: list[Chunk], *, provider=None, model: str | None = None) -> dict[str, Any]:
-    """Trả dict thống nhất cho UI và cho eval (CP3) dùng chung."""
+def generate(query: str, scope_result, chunks: list[Chunk], *, provider=None, model: str | None = None, include_external_citations: bool = True) -> dict[str, Any]:
+    """Trả dict thống nhất cho UI và eval (CP3), hỗ trợ internal & Tavily external citations."""
     result: dict[str, Any] = {
         "text": "",
         "sources": [c.cite for c in chunks],
+        "external_sources": [],
         "untrusted_found": [line for c in chunks for line in c.untrusted],
         "mode": "rule",          # rule | live | mock
         "latency_ms": 0,
@@ -105,18 +99,18 @@ def generate(query: str, scope_result, chunks: list[Chunk], *, provider=None, mo
         "error": None,
     }
 
-    # Ngoài phạm vi -> từ chối hữu ích, KHÔNG tốn một lời gọi LLM nào.
+    # Ngoài phạm vi -> từ chối hữu ích
     if scope_result.scope == "out_of_scope":
         result["text"] = REFUSAL_OUT_OF_SCOPE
         return result
 
-    # Mơ hồ -> HỎI LẠI, không đoán liều (HAX G10). Cũng không tốn lời gọi LLM.
+    # Mơ hồ -> HỎI LẠI
     if scope_result.scope == "ambiguous":
         result["text"] = CLARIFY_QUESTION
         result["sources"] = []
         return result
 
-    # Không có căn cứ -> nói thẳng thiếu gì, không gọi LLM để khỏi có cơ hội bịa.
+    # Không có căn cứ -> báo thiếu dữ liệu
     if not chunks:
         result["text"] = _no_grounding_message(scope_result)
         return result
@@ -131,11 +125,23 @@ def generate(query: str, scope_result, chunks: list[Chunk], *, provider=None, mo
     started = time.perf_counter()
     try:
         response = provider.complete(messages, tools=None, model=model, temperature=0.0)
-        result["text"] = (response.text or "").strip() or _mock_answer(query, chunks)
+        base_text = (response.text or "").strip() or _mock_answer(query, chunks)
         result["mode"] = "live"
         result["model"] = model or getattr(provider, "default_model", None)
+
+        # Tavily External Citations (optional)
+        if include_external_citations and os.getenv("TAVILY_API_KEY"):
+            ext_results = tavily_search_external_citations(query, max_results=3)
+            if ext_results:
+                result["external_sources"] = ext_results
+                ext_lines = ["\n\n🌐 **Tài liệu tham khảo mở rộng (Tavily External Citations):**"]
+                for ext in ext_results:
+                    ext_lines.append(f"- [{ext['title']}]({ext['url']}) — *{ext['snippet']}*")
+                base_text += "\n".join(ext_lines)
+
+        result["text"] = base_text
+
     except Exception as exc:
-        # Hết quota ngày / mất mạng / provider lỗi -> vẫn trả lời được, có badge MOCK.
         result["text"] = _mock_answer(query, chunks)
         result["mode"] = "mock"
         result["error"] = f"{type(exc).__name__}: {exc}"

@@ -6,12 +6,14 @@ from typing import Any
 import yaml
 
 from .vlearn.tool import detect_scope_tool, search_corpus_tool, escalate_ta_tool
+from .tavily.tool import tavily_search_tool
 
 
 TOOL_FUNCTIONS = {
     "detect_scope": detect_scope_tool,
     "search_corpus": search_corpus_tool,
     "escalate_ta": escalate_ta_tool,
+    "tavily_search": tavily_search_tool,
 }
 
 

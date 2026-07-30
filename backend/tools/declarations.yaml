@@ -46,3 +46,17 @@ tools:
           type: string
           description: Original student query
       required: [reason, student_query]
+
+  - name: tavily_search
+    description: Search external web and official documentation via Tavily API for external citations.
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: Search query for external documentation
+        max_results:
+          type: integer
+          description: Maximum number of search results to return
+      required: [query]
+
