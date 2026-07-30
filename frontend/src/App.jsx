@@ -1,4 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Document, Page, pdfjs } from "react-pdf";
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
 import {
   BadgeCheck,
   BookOpen,
@@ -24,6 +27,9 @@ import {
 import { dayGroups, documents, evidenceMetrics, transcriptSnippets } from "./data/slides.js";
 
 const API_BASE_URL = "http://localhost:8000";
+pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+const WATERMARK_CLASS = "pdf-watermark-text";
+const WATERMARK_WORDS = /(ai\s+in\s+action|hackathon)/i;
 
 const demoPrompts = [
   { id: "page", label: "Trang hiện tại", query: "Tóm tắt nội dung chính trong slide này" },
@@ -56,6 +62,53 @@ function scoreSlide(query, slide) {
     if (textTerms.has(term)) score += 1;
   });
   return score;
+}
+
+function getElementFromNode(node) {
+  if (!node) return null;
+  return node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+}
+
+function rotationFromTransform(transform) {
+  if (!transform || transform === "none") return 0;
+  const matrix = transform.match(/matrix\(([^)]+)\)/);
+  if (!matrix) return transform.includes("rotate") ? 45 : 0;
+  const [a, b] = matrix[1].split(",").map((value) => Number.parseFloat(value.trim()));
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
+  return Math.atan2(b, a) * (180 / Math.PI);
+}
+
+function cleanWatermarkSelection(text, touchedWatermark) {
+  if (!touchedWatermark) return text;
+  return text
+    .replace(/ai\s+in\s+action\s*[-–—·]?\s*hackathon/gi, " ")
+    .replace(/ai\s+in\s+action/gi, " ")
+    .replace(/hackathon/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function selectedTextWithoutWatermark(selection, textLayer) {
+  if (!selection?.rangeCount || !textLayer) return "";
+  const pieces = [];
+  const spans = Array.from(textLayer.querySelectorAll("span"));
+
+  for (let index = 0; index < selection.rangeCount; index += 1) {
+    const range = selection.getRangeAt(index);
+    spans.forEach((span) => {
+      if (span.classList.contains(WATERMARK_CLASS)) return;
+      try {
+        if (range.intersectsNode(span)) {
+          const text = span.textContent?.replace(/\s+/g, " ").trim();
+          if (text) pieces.push(text);
+        }
+      } catch {
+        // Ignore spans that cannot be compared with the selection range.
+      }
+    });
+  }
+
+  return [...new Set(pieces)].join(" ").replace(/\s+/g, " ").trim();
 }
 
 function externalMockLinks(query, doc) {
@@ -262,8 +315,14 @@ function App() {
   const [expandedDays, setExpandedDays] = useState({ day01: true, day02: false });
   const [page, setPage] = useState(2);
   const [selectedText, setSelectedText] = useState("");
+  const [selectionMenu, setSelectionMenu] = useState(null);
+  const [selectionNotes, setSelectionNotes] = useState([]);
+  const [pdfPageCount, setPdfPageCount] = useState(documents[0].pageCount);
+  const [pdfPageWidth, setPdfPageWidth] = useState(0);
   const [question, setQuestion] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const wheelNavRef = useRef(0);
+  const pdfFrameRef = useRef(null);
   const [messages, setMessages] = useState([
     {
       role: "assistant",
@@ -278,12 +337,61 @@ function App() {
 
   const doc = useMemo(() => documents.find((item) => item.id === docId) || documents[0], [docId]);
   const slide = useMemo(() => doc.slides.find((item) => item.page === page) || doc.slides[0], [doc, page]);
+  const pageCount = pdfPageCount || doc.pageCount;
+  const currentSelectionNotes = useMemo(
+    () => selectionNotes.filter((note) => note.docId === doc.id && note.page === slide.page),
+    [selectionNotes, doc.id, slide.page]
+  );
   const progress = Math.round((messages.filter((item) => item.role === "user").length / 15) * 100);
+
+  useEffect(() => {
+    function closeSelectionMenu(event) {
+      if (event.target.closest(".selection-menu") || event.target.closest(".pdf-frame")) return;
+      setSelectionMenu(null);
+    }
+
+    function closeOnEscape(event) {
+      if (event.key === "Escape") setSelectionMenu(null);
+    }
+
+    document.addEventListener("mousedown", closeSelectionMenu);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeSelectionMenu);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, []);
+
+  useEffect(() => {
+    let frameId = 0;
+
+    function updatePageWidth() {
+      cancelAnimationFrame(frameId);
+      frameId = requestAnimationFrame(() => {
+        const frame = pdfFrameRef.current;
+        if (!frame) return;
+        const nextWidth = Math.max(320, Math.min(960, Math.floor(frame.getBoundingClientRect().width)));
+        setPdfPageWidth((currentWidth) => {
+          if (!currentWidth) return nextWidth;
+          return Math.abs(currentWidth - nextWidth) > 8 ? nextWidth : currentWidth;
+        });
+      });
+    }
+
+    updatePageWidth();
+    window.addEventListener("resize", updatePageWidth);
+    return () => {
+      cancelAnimationFrame(frameId);
+      window.removeEventListener("resize", updatePageWidth);
+    };
+  }, []);
 
   function changeDoc(nextDoc) {
     setDocId(nextDoc.id);
     setPage(1);
+    setPdfPageCount(nextDoc.pageCount);
     setSelectedText("");
+    setSelectionMenu(null);
     setMessages((current) => [
       ...current,
       {
@@ -355,6 +463,93 @@ function App() {
     }
   }
 
+  function clampSelectionMenuPosition(clientX, clientY) {
+    const menuWidth = 320;
+    const menuHeight = 150;
+    return {
+      x: Math.max(12, Math.min(clientX, window.innerWidth - menuWidth - 12)),
+      y: Math.max(12, Math.min(clientY + 12, window.innerHeight - menuHeight - 12))
+    };
+  }
+
+  function handleSelectionPointerDown(event) {
+    if (event.button !== 0) return;
+    setSelectionMenu(null);
+  }
+
+  function handleSelectionPointerUp(event) {
+    const selection = window.getSelection?.();
+    const selected = selection?.toString().replace(/\s+/g, " ").trim();
+    const textLayer = event.currentTarget.querySelector(".react-pdf__Page__textContent");
+    const selectionRange = selection?.rangeCount ? selection.getRangeAt(0) : null;
+    const selectionStartsInPdf =
+      selection?.anchorNode && textLayer?.contains(getElementFromNode(selection.anchorNode));
+    const selectionEndsInPdf =
+      selection?.focusNode && textLayer?.contains(getElementFromNode(selection.focusNode));
+    const touchedWatermark =
+      selectionRange &&
+      Array.from(textLayer?.querySelectorAll(`.${WATERMARK_CLASS}`) || []).some((node) => {
+        try {
+          return selectionRange.intersectsNode(node);
+        } catch {
+          return false;
+        }
+      });
+    const cleanedSelection = touchedWatermark
+      ? cleanWatermarkSelection(selectedTextWithoutWatermark(selection, textLayer), true)
+      : selected;
+
+    if (!cleanedSelection || !selectionStartsInPdf || !selectionEndsInPdf) {
+      selection?.removeAllRanges();
+      setSelectedText("");
+      setSelectionMenu(null);
+      return;
+    }
+
+    setSelectedText(cleanedSelection);
+    setSelectionMenu(clampSelectionMenuPosition(event.clientX, event.clientY));
+  }
+
+  function markWatermarkTextLayer() {
+    requestAnimationFrame(() => {
+      const textLayer = pdfFrameRef.current?.querySelector(".react-pdf__Page__textContent");
+      if (!textLayer) return;
+
+      textLayer.querySelectorAll("span").forEach((span) => {
+        const normalizedText = span.textContent?.replace(/\s+/g, " ").trim() || "";
+        const rect = span.getBoundingClientRect();
+        const rotation = Math.abs(rotationFromTransform(window.getComputedStyle(span).transform));
+        const isHackathon = /hackathon/i.test(normalizedText);
+        const isLargeAiInAction = /ai\s+in\s+action/i.test(normalizedText) && rect.width > 170;
+        const isDiagonal = rotation > 8 && rotation < 82;
+
+        if (isDiagonal || isHackathon || isLargeAiInAction || (WATERMARK_WORDS.test(normalizedText) && rect.width > 220)) {
+          span.classList.add(WATERMARK_CLASS);
+          span.setAttribute("aria-hidden", "true");
+        }
+      });
+    });
+  }
+
+  function goToPage(nextPage) {
+    const safePage = Math.max(1, Math.min(nextPage, pageCount));
+    if (safePage === page) return;
+    setPage(safePage);
+    setSelectedText("");
+    setSelectionMenu(null);
+  }
+
+  function handleSlideWheel(event) {
+    if (Math.abs(event.deltaY) < 18) return;
+    event.preventDefault();
+
+    const now = Date.now();
+    if (now - wheelNavRef.current < 420) return;
+    wheelNavRef.current = now;
+
+    goToPage(page + (event.deltaY > 0 ? 1 : -1));
+  }
+
   async function escalateToTA(userQuery) {
     try {
       const resp = await fetch(`${API_BASE_URL}/api/v1/escalate-ta`, {
@@ -371,6 +566,65 @@ function App() {
     } catch (e) {
       alert("Đã ghi nhận yêu cầu chuyển TA.");
     }
+  }
+
+  function askAboutSelection() {
+    if (!selectedText.trim()) return;
+    ask(`Giải thích đoạn bôi đen này: ${selectedText}`, "selected_text");
+    setSelectionMenu(null);
+  }
+
+  function reportConfusion() {
+    if (!selectedText.trim()) return;
+    setMessages((current) => [
+      ...current,
+      { role: "user", text: `Em đang bối rối ở đoạn: ${selectedText}` },
+      {
+        role: "assistant",
+        mode: "confusion-report",
+        status: "Đã ghi nhận",
+        confidence: 92,
+        scope: {
+          scope: "selected_text",
+          label: "Đoạn bôi đen",
+          reason: "Bối rối được gắn trực tiếp với đoạn đã chọn trên slide."
+        },
+        sources: [`Trang ${slide.page}`, doc.sourcePath],
+        text:
+          "Mình đã ghi nhận điểm bối rối cho đoạn này. Trong bản demo, trạng thái này có thể dùng để đẩy tín hiệu cho TA hoặc ưu tiên giải thích lại theo đúng slide."
+      }
+    ]);
+    setSelectionMenu(null);
+  }
+
+  function addSelectionNote() {
+    if (!selectedText.trim()) return;
+    setSelectionNotes((current) => [
+      ...current,
+      {
+        id: `${doc.id}-${slide.page}-${Date.now()}`,
+        docId: doc.id,
+        page: slide.page,
+        text: selectedText
+      }
+    ]);
+    setMessages((current) => [
+      ...current,
+      {
+        role: "assistant",
+        mode: "note",
+        status: "Đã ghi chú",
+        confidence: 100,
+        scope: {
+          scope: "selected_text",
+          label: "Đoạn bôi đen",
+          reason: "Ghi chú được lưu mock ở frontend theo trang hiện tại."
+        },
+        sources: [`Trang ${slide.page}`],
+        text: `Đã lưu ghi chú cho đoạn bôi đen ở trang ${slide.page}.`
+      }
+    ]);
+    setSelectionMenu(null);
   }
 
   function toggleDay(dayId) {
@@ -471,40 +725,54 @@ function App() {
                 <BookOpen size={16} />
                 Đọc
               </button>
-              <button
-                className={`tool-button ${selectedText ? "active-soft" : ""}`}
-                type="button"
-                onClick={() => setSelectedText(selectedText ? "" : slide.bullets[0])}
-              >
-                <Highlighter size={16} />
-                Bôi đen
-              </button>
             </div>
             <div className="scope-chip">
               <PanelRight size={16} />
-              Trang {slide.page} / {doc.pageCount}
+              Trang {page} / {pageCount}
             </div>
           </div>
 
           <div className="slide-stage">
-            <div className="pdf-frame">
-              <iframe
-                key={`${doc.id}-${page}`}
-                className="pdf-viewer"
-                title={`${doc.title} - trang ${page}`}
-                src={`${doc.pdfUrl}#page=${page}&toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
-              />
-              {selectedText ? (
-                <div className="selection-overlay">
-                  <Highlighter size={15} />
-                  <span>{selectedText}</span>
-                </div>
-              ) : null}
+            <div
+              className="pdf-frame"
+              ref={pdfFrameRef}
+              onMouseDown={handleSelectionPointerDown}
+              onMouseUp={handleSelectionPointerUp}
+              onWheel={handleSlideWheel}
+            >
+              <Document
+                key={doc.id}
+                file={doc.pdfUrl}
+                className="pdf-document"
+                loading={<div className="pdf-load-state">Đang tải PDF...</div>}
+                error={<div className="pdf-load-state error">Không mở được PDF từ data/slides.</div>}
+                onLoadSuccess={({ numPages }) => {
+                  setPdfPageCount((currentCount) => (currentCount === numPages ? currentCount : numPages));
+                }}
+              >
+                <Page
+                  key={`${doc.id}-${page}`}
+                  className="pdf-page"
+                  pageNumber={page}
+                  width={pdfPageWidth || 900}
+                  renderAnnotationLayer
+                  renderTextLayer
+                  onRenderTextLayerSuccess={markWatermarkTextLayer}
+                  loading={<div className="pdf-load-state">Đang render trang...</div>}
+                />
+              </Document>
             </div>
           </div>
 
           <div className="page-nav">
-            <button className="icon-button" type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+            <button
+              className="icon-button"
+              type="button"
+              disabled={page <= 1}
+              onClick={() => {
+                goToPage(page - 1);
+              }}
+            >
               <ChevronLeft size={18} />
             </button>
             <input
@@ -512,14 +780,18 @@ function App() {
               value={page}
               onChange={(event) => {
                 const next = Number(event.target.value);
-                if (Number.isInteger(next) && next >= 1 && next <= doc.pageCount) setPage(next);
+                if (Number.isInteger(next) && next >= 1 && next <= pageCount) {
+                  goToPage(next);
+                }
               }}
             />
             <button
               className="icon-button"
               type="button"
-              disabled={page >= doc.pageCount}
-              onClick={() => setPage(page + 1)}
+              disabled={page >= pageCount}
+              onClick={() => {
+                goToPage(page + 1);
+              }}
             >
               <ChevronRight size={18} />
             </button>
@@ -646,6 +918,39 @@ function App() {
 
         </aside>
       </main>
+      {selectionMenu && selectedText ? (
+        <div
+          className="selection-menu"
+          style={{ left: `${selectionMenu.x}px`, top: `${selectionMenu.y}px` }}
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div className="selection-summary">
+            <Highlighter size={15} />
+            <span>{selectedText}</span>
+          </div>
+          <div className="selection-actions">
+            <button type="button" onClick={askAboutSelection}>
+              <Bot size={14} />
+              Hỏi AI
+            </button>
+            <button type="button" onClick={reportConfusion}>
+              <CircleHelp size={14} />
+              Báo bối rối
+            </button>
+            <button type="button" onClick={addSelectionNote}>
+              <FileText size={14} />
+              Ghi chú
+            </button>
+          </div>
+          {currentSelectionNotes.length > 0 ? (
+            <div className="selection-notes">
+              {currentSelectionNotes.slice(-2).map((note) => (
+                <span key={note.id}>Ghi chú: {note.text}</span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -55,6 +55,7 @@ button:disabled {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  user-select: none;
 }
 
 .topbar {
@@ -544,7 +545,7 @@ button:disabled {
   gap: 20px;
   position: relative;
   overflow-y: auto;
-  user-select: text; /* Enable native text selection */
+  user-select: none;
   cursor: text;
 }
 
@@ -776,32 +777,156 @@ button:disabled {
   border: 1px solid var(--line-strong);
   overflow: hidden;
   position: relative;
-}
-
-.pdf-viewer {
-  width: 100%;
-  height: 100%;
-  display: block;
-  border: 0;
-  background: #fff;
-}
-
-.selection-overlay {
-  position: absolute;
-  left: 18px;
-  right: 18px;
-  bottom: 18px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  cursor: text;
+  user-select: none;
+}
+
+.pdf-document {
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pdf-page {
+  max-width: 100%;
+  background: #fff;
+  line-height: 1;
+}
+
+.pdf-page canvas {
+  max-width: 100%;
+  height: auto !important;
+  display: block;
+}
+
+.pdf-page .react-pdf__Page__textContent {
+  cursor: text;
+  user-select: text;
+}
+
+.pdf-page .react-pdf__Page__textContent span {
+  user-select: text;
+}
+
+.pdf-page .react-pdf__Page__textContent span.pdf-watermark-text {
+  pointer-events: none;
+  user-select: none !important;
+}
+
+.pdf-page .react-pdf__Page__textContent span.pdf-watermark-text::selection {
+  background: transparent;
+  color: transparent;
+}
+
+.pdf-page .react-pdf__Page__textContent span::selection {
+  background: rgb(250 204 21 / 0.38);
+  color: inherit;
+}
+
+.pdf-load-state {
+  width: 100%;
+  min-height: 260px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pdf-load-state.error {
+  color: var(--rose);
+  background: var(--rose-soft);
+}
+
+.selection-menu {
+  position: fixed;
+  width: min(320px, calc(100vw - 24px));
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
   border: 1px solid #eab308;
   background: #fef9c3;
   color: #713f12;
   border-radius: 8px;
-  padding: 9px 11px;
+  padding: 10px;
   font-size: 13px;
   font-weight: 700;
   box-shadow: 0 10px 25px rgb(113 63 18 / 0.15);
+  animation: selectionMenuIn 0.12s ease-out;
+}
+
+@keyframes selectionMenuIn {
+  from {
+    transform: translateY(-4px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.selection-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.selection-summary span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selection-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.selection-actions button {
+  min-width: 0;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #f3c24d;
+  border-radius: 8px;
+  background: #fff;
+  color: #713f12;
+  padding: 7px 8px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.selection-actions button:hover {
+  border-color: #ca8a04;
+  background: #fff7d6;
+}
+
+.selection-notes {
+  display: grid;
+  gap: 6px;
+}
+
+.selection-notes span {
+  border-left: 3px solid #ca8a04;
+  background: rgb(255 255 255 / 0.72);
+  border-radius: 6px;
+  padding: 6px 8px;
+  color: #713f12;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .page-nav {
@@ -826,13 +951,40 @@ button:disabled {
 }
 
 .tutor-header {
-  height: 66px;
+  min-height: 66px;
   flex: 0 0 auto;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 16px;
+  padding: 10px 16px;
   border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.tutor-title h2 {
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tutor-title p {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.tutor-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .bot-avatar {
@@ -874,10 +1026,10 @@ button:disabled {
 
 .scenario-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--line);
-  overflow-x: auto;
 }
 
 .scenario-row button,
@@ -887,8 +1039,19 @@ button:disabled {
   background: var(--surface);
   color: var(--muted);
   border-radius: 999px;
-  padding: 6px 9px;
+  padding: 6px 10px;
   font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.scenario-row button:hover,
+.clarify-actions button:hover {
+  border-color: var(--blue);
+  color: var(--blue);
+  background: #eff6ff;
 }
 
 .chat-log {
@@ -1120,5 +1283,9 @@ button:disabled {
   .pdf-frame {
     aspect-ratio: auto;
     min-height: 360px;
+  }
+
+  .selection-actions {
+    grid-template-columns: 1fr;
   }
 }
