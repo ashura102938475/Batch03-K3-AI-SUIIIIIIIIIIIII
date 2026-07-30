@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
+import ReactMarkdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
+import remarkGfm from "remark-gfm";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import {
@@ -346,6 +349,7 @@ function App() {
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const wheelNavRef = useRef(0);
   const pdfFrameRef = useRef(null);
+  const chatLogRef = useRef(null);
   const [messages, setMessages] = useState([
     {
       role: "assistant",
@@ -366,6 +370,19 @@ function App() {
     [selectionNotes, doc.id, slide.page]
   );
   const progress = Math.round((messages.filter((item) => item.role === "user").length / 15) * 100);
+
+  useEffect(() => {
+    if (isChatCollapsed) return undefined;
+    const frameId = requestAnimationFrame(() => {
+      const chatLog = chatLogRef.current;
+      if (!chatLog) return;
+      chatLog.scrollTo({
+        top: chatLog.scrollHeight,
+        behavior: messages.length > 1 ? "smooth" : "auto"
+      });
+    });
+    return () => cancelAnimationFrame(frameId);
+  }, [messages, isLoading, isChatCollapsed]);
 
   useEffect(() => {
     function closeSelectionMenu(event) {
@@ -893,7 +910,7 @@ function App() {
             ))}
           </div>
 
-          <div className="chat-log">
+          <div className="chat-log" ref={chatLogRef}>
             {messages.length === 0 ? (
               <div className="empty-state">
                 <Sparkles size={22} />
@@ -909,7 +926,18 @@ function App() {
                       <div className="message-meta">
                         <span>{message.scope?.label}</span>
                       </div>
-                      <div style={{ whiteSpace: "pre-wrap" }}>{message.text}</div>
+                      <div className="message-markdown">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm, remarkBreaks]}
+                          components={{
+                            a: ({ node: _node, ...props }) => (
+                              <a {...props} target="_blank" rel="noopener noreferrer" />
+                            )
+                          }}
+                        >
+                          {message.text}
+                        </ReactMarkdown>
+                      </div>
                       {message.sources?.length > 0 ? (() => {
                         const renderedSources = message.sources.map((source) => {
                           const pageMatch = source.match(/Trang\s+(\d+)/i);

@@ -1068,16 +1068,11 @@ button:disabled {
   gap: 12px;
   padding: 14px;
   background: #f7f9fc;
-  cursor: grab;
+  cursor: default;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
   touch-action: pan-y;
-  user-select: none;
-}
-
-.chat-log.dragging {
-  cursor: grabbing;
-  scroll-behavior: auto;
+  user-select: text;
 }
 
 .empty-state {
@@ -1112,8 +1107,7 @@ button:disabled {
   overflow: visible;
 }
 
-.message.user p,
-.message.assistant p {
+.message.user p {
   margin: 0;
 }
 
@@ -1133,6 +1127,137 @@ button:disabled {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.message-markdown {
+  color: #243244;
+  line-height: 1.55;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  user-select: text;
+}
+
+.message-markdown > :first-child {
+  margin-top: 0;
+}
+
+.message-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.message-markdown p {
+  margin: 0 0 10px;
+}
+
+.message-markdown h1,
+.message-markdown h2,
+.message-markdown h3,
+.message-markdown h4 {
+  color: #172033;
+  font-weight: 750;
+  line-height: 1.35;
+  margin: 14px 0 7px;
+}
+
+.message-markdown h1 {
+  font-size: 16px;
+}
+
+.message-markdown h2 {
+  font-size: 15px;
+}
+
+.message-markdown h3,
+.message-markdown h4 {
+  font-size: 14px;
+}
+
+.message-markdown ul,
+.message-markdown ol {
+  margin: 6px 0 10px;
+  padding-left: 20px;
+}
+
+.message-markdown li {
+  margin: 3px 0;
+  padding-left: 2px;
+}
+
+.message-markdown li > p {
+  margin: 0;
+}
+
+.message-markdown strong {
+  color: #111827;
+  font-weight: 750;
+}
+
+.message-markdown a {
+  color: #155eef;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.message-markdown blockquote {
+  margin: 8px 0 10px;
+  padding: 7px 10px;
+  border-left: 3px solid #93b4f5;
+  background: #f5f8ff;
+  color: #475569;
+}
+
+.message-markdown code {
+  border: 1px solid #dbe3ee;
+  border-radius: 4px;
+  padding: 1px 4px;
+  background: #f3f6fa;
+  color: #9f1239;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+}
+
+.message-markdown pre {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 8px 0 10px;
+  padding: 10px;
+  border: 1px solid #dbe3ee;
+  border-radius: 6px;
+  background: #101827;
+}
+
+.message-markdown pre code {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #e5edf7;
+}
+
+.message-markdown table {
+  width: 100%;
+  margin: 8px 0 10px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.message-markdown th,
+.message-markdown td {
+  border: 1px solid #dbe3ee;
+  padding: 6px 7px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.message-markdown th {
+  background: #f3f6fa;
+  color: #172033;
+}
+
+.message-markdown hr {
+  border: 0;
+  border-top: 1px solid #e2e8f0;
+  margin: 12px 0;
 }
 
 .message-meta {
