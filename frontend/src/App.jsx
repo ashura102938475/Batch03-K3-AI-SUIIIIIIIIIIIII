@@ -631,11 +631,7 @@ function App() {
                 </div>
               ))
             )}
-            {isLoading && (
-              <div className="message assistant loading">
-                <p>⏳ Đang xử lý qua FastAPI Backend & NVIDIA Provider...</p>
-              </div>
-            )}
+
           </div>
 
           <form
