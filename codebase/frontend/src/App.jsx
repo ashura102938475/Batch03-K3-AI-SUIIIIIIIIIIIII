@@ -333,6 +333,40 @@ function VLogo() {
   );
 }
 
+function SourceListSection({ sources, threshold = 3 }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  if (!sources || sources.length === 0) return null;
+
+  const hasMore = sources.length > threshold;
+  const visibleSources = isExpanded ? sources : sources.slice(0, threshold);
+  const remainingCount = sources.length - threshold;
+
+  return (
+    <div className="source-section">
+      <span className="section-label">Trích dẫn (Grounding Sources):</span>
+      <div className="source-list">{visibleSources}</div>
+      {hasMore && (
+        <button
+          type="button"
+          className="expand-sources-btn"
+          onClick={() => setIsExpanded((prev) => !prev)}
+        >
+          {isExpanded ? (
+            <>
+              <ChevronUp size={14} /> Thu gọn
+            </>
+          ) : (
+            <>
+              <ChevronDown size={14} /> Xem thêm {remainingCount} trích dẫn nữa
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function App() {
   const [docId, setDocId] = useState(documents[0].id);
   const [expandedDays, setExpandedDays] = useState({ day01: true, day02: false });
@@ -347,18 +381,42 @@ function App() {
   const [draftTicket, setDraftTicket] = useState(null);
   const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
+  const [chatWidth, setChatWidth] = useState(405);
+  const [isResizingChat, setIsResizingChat] = useState(false);
   const wheelNavRef = useRef(0);
   const pdfFrameRef = useRef(null);
   const chatLogRef = useRef(null);
+
+  function handleChatResizeStart(e) {
+    e.preventDefault();
+    setIsResizingChat(true);
+    const startX = e.clientX;
+    const startWidth = chatWidth;
+
+    function onMouseMove(moveEvent) {
+      const deltaX = startX - moveEvent.clientX;
+      const newWidth = Math.max(300, Math.min(850, startWidth + deltaX));
+      setChatWidth(newWidth);
+    }
+
+    function onMouseUp() {
+      setIsResizingChat(false);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    }
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  }
   const [messages, setMessages] = useState([
     {
       role: "assistant",
       mode: "live",
-      status: "🟢 Fast API Connected",
+      status: "🟢 Sẵn sàng",
       confidence: 95,
-      scope: { label: "Trang hiện tại", reason: "Kết nối FastAPI Backend & NVIDIA Provider." },
+      scope: { label: "Trang hiện tại", reason: "Hệ thống sẵn sàng hỗ trợ bạn." },
       sources: ["Trang 2"],
-      text: "Xin chào. Hệ thống đã kết nối trực tiếp với **FastAPI Backend Pipeline (NVIDIA Model & Telegram TA Bot)**. Bạn có thể hỏi theo trang, cả tài liệu, hay cả buổi học."
+      text: "Xin chào. Bạn có thể hỏi theo trang, cả tài liệu, hay cả buổi học."
     }
   ]);
 
@@ -746,7 +804,14 @@ function App() {
 
       </header>
 
-      <main className={`workspace ${isChatCollapsed ? "workspace--chat-collapsed" : ""}`}>
+      <main
+        className={`workspace ${isChatCollapsed ? "workspace--chat-collapsed" : ""} ${isResizingChat ? "resizing" : ""}`}
+        style={{
+          gridTemplateColumns: isChatCollapsed
+            ? "292px 1fr 0px"
+            : `292px 1fr ${chatWidth}px`
+        }}
+      >
         <aside className="library-panel">
           <div className="sidebar-header">
             <div className="header-icon-box">
@@ -896,6 +961,11 @@ function App() {
         </section>
 
         <aside className="tutor-panel">
+          <div
+            className={`chat-resizer ${isResizingChat ? "active" : ""}`}
+            onMouseDown={handleChatResizeStart}
+            title="Kéo sang trái / phải để điều chỉnh kích thước ô Chatbot"
+          />
           <div className="tutor-header">
             <div className="tutor-title">
               <div className="bot-avatar">
@@ -1051,14 +1121,7 @@ function App() {
                           );
                         }).filter(Boolean);
 
-                        if (renderedSources.length === 0) return null;
-
-                        return (
-                          <div className="source-section">
-                            <span className="section-label">Trích dẫn (Grounding Sources):</span>
-                            <div className="source-list">{renderedSources}</div>
-                          </div>
-                        );
+                        return <SourceListSection sources={renderedSources} threshold={3} />;
                       })() : null}
                       {message.needs_clarification ? (
                         <div className="clarify-actions">
