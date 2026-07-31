@@ -6,12 +6,13 @@ from unittest.mock import patch
 
 from companion.answer import _strip_empty_easy_confusion, _validate_citations, generate
 from companion.retriever import Chunk, load_corpus, search
-from companion.routing import should_try_external
+from companion.routing import should_suggest_ta, should_try_external
 from companion.scope import (
     ScopeResult,
     detect_intent,
     detect_scope,
     detect_scope_llm,
+    is_floor_ambiguous,
     is_information_request,
 )
 from companion.tavily_search import _source_priority
@@ -451,6 +452,95 @@ class CompanionSafetyTests(unittest.TestCase):
         self.assertEqual("out_of_scope", scope.scope)
         self.assertIn("không thể đưa đáp án", answer["text"])
         self.assertEqual([], answer["sources"])
+
+
+class ScopeControlFlowTests(unittest.TestCase):
+    """Khoá lại thứ tự kiểm tra trong detect_scope — chỗ từng làm hỏng lặng lẽ 4 case."""
+
+    def _scope(self, query, *, has_selection=False, day="day01", page=8):
+        return detect_scope(query, has_selection=has_selection, current_day=day, current_page=page)
+
+    def test_explicit_page_survives_non_question_phrasing(self):
+        """Cổng `not is_information_request` từng đứng TRƯỚC mọi kiểm tra phạm vi, nên
+        một câu mệnh lệnh có nêu đích danh trang vẫn bị nuốt thành ambiguous."""
+        result = self._scope("Tạo 3 câu hỏi trắc nghiệm ôn tập dựa trên slide trang 3")
+        self.assertEqual("current_page", result.scope)
+        self.assertEqual(3, result.target_page)
+
+    def test_colloquial_page_reference_survives(self):
+        result = self._scope("slide này ý là gì")
+        self.assertEqual("current_page", result.scope)
+
+    def test_breadth_marker_beats_page_signal(self):
+        """'đọc hết bộ slide này' chứa nguyên cụm 'slide nay' nên nhánh trang từng
+        cướp mất — trong khi người học rõ ràng muốn cả tệp."""
+        result = self._scope("đọc hết bộ slide này giúp mình")
+        self.assertNotEqual("current_page", result.scope)
+
+    def test_fallthrough_is_marked_so_the_llm_knows_where_to_help(self):
+        result = self._scope("recap cái deck đang mở giúp t", page=6)
+        self.assertEqual("fallthrough", result.origin)
+
+    def test_decisive_rule_is_marked_so_the_llm_is_never_consulted(self):
+        for query in ("Giải thích Transformer trong slide này", "tóm tắt buổi 2", "toàn bộ slide nói gì"):
+            with self.subTest(query=query):
+                self.assertEqual("rule", self._scope(query).origin)
+
+    def test_short_vague_request_hits_the_ambiguity_floor(self):
+        self.assertTrue(is_floor_ambiguous("recap giúp"))
+
+    def test_question_naming_a_document_is_not_floor_ambiguous(self):
+        self.assertFalse(is_floor_ambiguous("recap cái deck đang mở giúp t"))
+
+    def test_specific_concept_question_is_not_floor_ambiguous(self):
+        self.assertFalse(is_floor_ambiguous("reward function ảnh hưởng precision và recall ra sao"))
+
+
+class TaHandoffFlagTests(unittest.TestCase):
+    """V3-MISSING-03: câu trả lời tự nói 'cần chuyển cho trợ lý học tập' nhưng cờ lại
+    false, nên người học đọc xong không có nút nào để bấm."""
+
+    def test_flag_follows_handoff_text_in_answer(self):
+        self.assertTrue(
+            should_suggest_ta(
+                scope="current_page",
+                mode="live",
+                chunks=[object()],
+                verified_sources=["Trang 8"],
+                answer_text="Thiếu dữ liệu về quantum computing, cần chuyển cho trợ lý học tập [Trang 8].",
+            )
+        )
+
+    def test_normal_grounded_answer_does_not_set_the_flag(self):
+        self.assertFalse(
+            should_suggest_ta(
+                scope="current_page",
+                mode="live",
+                chunks=[object()],
+                verified_sources=["Trang 8"],
+                answer_text="Tổng quan: slide này nói về Transformer. [Trang 8]",
+            )
+        )
+
+    def test_correct_negative_answer_does_not_set_the_flag(self):
+        """V3-LOCAL-03 đang PASS: nói 'đoạn này không đề cập' là câu trả lời ĐÚNG,
+        không phải tín hiệu cần TA. Đây là lý do không tái dùng MISSING_GROUNDING_SIGNALS."""
+        self.assertFalse(
+            should_suggest_ta(
+                scope="selected_text",
+                mode="live",
+                chunks=[object()],
+                verified_sources=["Trang 12"],
+                answer_text="Đoạn bôi đen không đề cập tới reinforcement learning. [Trang 12]",
+            )
+        )
+
+    def test_greeting_never_suggests_ta(self):
+        self.assertFalse(
+            should_suggest_ta(
+                scope="conversation", mode="rule", chunks=[], verified_sources=[], answer_text=""
+            )
+        )
 
 
 if __name__ == "__main__":

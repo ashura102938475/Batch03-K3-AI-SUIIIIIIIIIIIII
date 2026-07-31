@@ -15,11 +15,12 @@ import os
 import re
 from dataclasses import dataclass
 
-from companion.text import fold_text, has_any
+from companion.text import fold_text, has_any, terms
 
 # ----------------------------------------------------------------- intent
 SUMMARY_SIGNALS = (
-    "tom tat", "tom gon", "tong hop", "summary", "y chinh", "noi dung chinh",
+    "tom tat", "tom gon", "tom lai", "tong hop", "summary", "recap", "sum up",
+    "y chinh", "noi dung chinh",
     "noi dung quan trong", "nhung phan chinh", "cac phan chinh", "thao luan chinh",
     "keyword", "tu khoa", "can hoc", "on lai", "ghi chu", "note",
 )
@@ -71,6 +72,17 @@ SELECTION_SIGNALS = ("doan nay", "cho nay", "phan nay", "boi den", "doan tren", 
 # Đây là ca có thật trong chatlog: T1164 "tóm tắt cho t tất cả từ trang 1 đến trang 44 bài này học về gì".
 AMBIGUOUS_SIGNALS = ("bai nay", "cai nay", "phan tren", "noi dung nay")
 
+# "đọc hết bộ slide này" chứa nguyên cụm "slide nay" nên nhánh ④ cướp mất thành
+# current_page — đúng lỗi mà docstring của detect_scope cảnh báo nhưng chưa chặn.
+# Đây là luật cấu trúc (tín hiệu độ rộng đè tín hiệu trang), không phải nhồi từ khoá.
+BREADTH_MARKERS = ("het ", "toan bo", "tat ca", "ca bo", "full", "all ", "moi trang", "tu dau den cuoi")
+
+# Danh từ neo phạm vi: có mặt thì câu hỏi ít nhất đã trỏ vào MỘT loại tài liệu nào đó.
+SCOPE_ANCHOR_NOUNS = (
+    "slide", "deck", "tai lieu", "file", "trang", "page", "bai", "buoi",
+    "lesson", "session", "chuong", "document", "transcript", "doan",
+)
+
 DAY_PATTERN = re.compile(r"(?:buoi|day|ngay)\s*0?(\d{1,2})")
 PAGE_PATTERN = re.compile(r"(?:trang|slide|page)\s*0?(\d{1,3})")
 RANGE_PATTERN = re.compile(r"(?:tu\s*)?(?:trang|slide)\s*0?(\d{1,3})\s*(?:den|-|toi|->)\s*(?:trang|slide)?\s*0?(\d{1,3})")
@@ -95,6 +107,10 @@ class ScopeResult:
     target_day: str | None = None
     target_page: int | None = None
     page_range: tuple[int, int] | None = None
+    # Luật có thực sự khớp một tín hiệu, hay đã bó tay rồi đoán? Đây là thứ cho phép
+    # classifier lai (companion/classify.py) chỉ hỏi LLM ở đúng ca luật không quyết được,
+    # nhờ vậy model dở hay chết cũng không kéo đổ các ca luật vốn đã đúng.
+    origin: str = "rule"     # rule | fallthrough | llm | safety | forced
 
     @property
     def label(self) -> str:
@@ -142,6 +158,23 @@ def wants_external_knowledge(query: str) -> bool:
     return has_any(fold_text(query), EXTERNAL_KNOWLEDGE_SIGNALS)
 
 
+def is_floor_ambiguous(query: str) -> bool:
+    """Sàn mơ hồ tất định — câu quá ngắn và không trỏ vào phạm vi nào.
+
+    Là chốt chặn đứng TRÊN cả LLM: "recap giúp" thì dù model có tự tin đoán trang
+    hiện tại, hỏi lại vẫn đúng hơn đoán liều (HAX G10). Nhờ vậy việc bật classifier
+    không biến hệ thống thành máy đoán bừa.
+    """
+    folded = fold_text(query)
+    if has_any(folded, AMBIGUOUS_SIGNALS):
+        return True
+    if has_any(folded, SCOPE_ANCHOR_NOUNS):
+        return False
+    if DAY_PATTERN.search(folded) or PAGE_PATTERN.search(folded):
+        return False
+    return len(terms(query)) <= 4
+
+
 def detect_scope(query: str, *, has_selection: bool, current_day: str, current_page: int) -> ScopeResult:
     """Trả phạm vi cần đọc + độ tin cậy + lý do.
 
@@ -179,15 +212,6 @@ def detect_scope(query: str, *, has_selection: bool, current_day: str, current_p
             scope="external_knowledge",
             confidence="cao",
             reason="Câu hỏi cần kiến thức hoặc nguồn tham khảo ngoài slide nên Tutor sẽ tra cứu nguồn web.",
-            target_day=current_day,
-            target_page=current_page,
-        )
-
-    if intent == "explain" and not is_information_request(query):
-        return ScopeResult(
-            scope="ambiguous",
-            confidence="thấp",
-            reason="Tin nhắn chưa thể hiện một câu hỏi hoặc yêu cầu kiến thức cụ thể.",
             target_day=current_day,
             target_page=current_page,
         )
@@ -248,7 +272,9 @@ def detect_scope(query: str, *, has_selection: bool, current_day: str, current_p
             target_day=current_day,
             target_page=page,
         )
-    if has_any(folded, PAGE_SIGNALS):
+    # "đọc hết bộ slide này" có 'slide nay' nhưng ý là cả tệp — tín hiệu độ rộng
+    # phải đè tín hiệu trang, nếu không sẽ tóm tắt đúng một trang rồi báo xong.
+    if has_any(folded, PAGE_SIGNALS) and not has_any(folded, BREADTH_MARKERS):
         return ScopeResult(
             scope="current_page",
             confidence="cao",
@@ -257,14 +283,36 @@ def detect_scope(query: str, *, has_selection: bool, current_day: str, current_p
             target_page=current_page,
         )
 
-    # ⑤ Mơ hồ — hỏi lại thay vì đoán liều (HAX G10)
-    if has_any(folded, AMBIGUOUS_SIGNALS) or intent == "summary":
+    # ⑤ Mơ hồ — hỏi lại thay vì đoán liều (HAX G10).
+    # Cổng `not is_information_request` nằm ở ĐÂY chứ không phải đầu hàm: đặt trước
+    # nhánh ①-④ thì "Tạo 3 câu hỏi ôn tập dựa trên slide trang 3" (một mệnh lệnh,
+    # không phải câu hỏi) bị nuốt thành ambiguous dù đã chỉ đích danh trang.
+    if has_any(folded, AMBIGUOUS_SIGNALS):
         return ScopeResult(
             scope="ambiguous",
             confidence="thấp",
             reason="Câu hỏi chưa nói rõ là trang hiện tại, cả tài liệu, hay cả buổi học.",
             target_day=current_day,
             target_page=current_page,
+            origin="rule",
+        )
+    if intent == "explain" and not is_information_request(query):
+        return ScopeResult(
+            scope="ambiguous",
+            confidence="thấp",
+            reason="Tin nhắn chưa thể hiện một câu hỏi hoặc yêu cầu kiến thức cụ thể.",
+            target_day=current_day,
+            target_page=current_page,
+            origin="fallthrough",
+        )
+    if intent == "summary":
+        return ScopeResult(
+            scope="ambiguous",
+            confidence="thấp",
+            reason="Câu hỏi chưa nói rõ là trang hiện tại, cả tài liệu, hay cả buổi học.",
+            target_day=current_day,
+            target_page=current_page,
+            origin="fallthrough",
         )
 
     return ScopeResult(
@@ -273,6 +321,7 @@ def detect_scope(query: str, *, has_selection: bool, current_day: str, current_p
         reason=f"Không có tín hiệu phạm vi rõ ràng nên mặc định dùng trang {current_page} bạn đang mở.",
         target_day=current_day,
         target_page=current_page,
+        origin="fallthrough",
     )
 
 

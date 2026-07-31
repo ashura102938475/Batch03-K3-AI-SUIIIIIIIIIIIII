@@ -22,8 +22,9 @@ from env_loader import load_lab_env
 load_lab_env(ROOT)
 
 from companion.answer import _validate_citations, generate
+from companion.classify import classify_turn
 from companion.retriever import Chunk, load_corpus, search as corpus_search
-from companion.scope import detect_intent, detect_scope
+from companion.routing import should_suggest_ta
 from companion.text import fold_text
 from providers import make_provider
 
@@ -194,13 +195,15 @@ def citations_match(
 
 def _run_direct(case: dict[str, Any], corpus: list[Chunk], provider: Any) -> dict[str, Any]:
     started = time.perf_counter()
-    intent = detect_intent(case["query"])
-    scope_result = detect_scope(
+    decision = classify_turn(
         case["query"],
         has_selection=bool(case.get("selection", "").strip()),
         current_day=case["current_day"],
         current_page=case["current_page"],
+        provider=provider,
     )
+    intent = decision.intent
+    scope_result = decision.scope_result
     chunks = corpus_search(
         case["query"],
         scope_result,
@@ -214,11 +217,14 @@ def _run_direct(case: dict[str, Any], corpus: list[Chunk], provider: Any) -> dic
         provider=provider,
         include_external_citations=False,
     )
-    ta_handoff = bool(
-        scope_result.scope in ("out_of_scope", "ambiguous")
-        or not chunks
-        or answer["mode"] in ("mock", "guardrail")
-        or (chunks and not answer["sources"])
+    # Dùng chung đúng hàm mà API dùng. Công thức chép tay trước đây thiếu cả guard
+    # "conversation" lẫn external_success nên direct và api chấm lệch nhau cùng một case.
+    ta_handoff = should_suggest_ta(
+        scope=scope_result.scope,
+        mode=answer["mode"],
+        chunks=chunks,
+        verified_sources=answer["sources"],
+        answer_text=answer["text"],
     )
     return {
         "http_status": None,

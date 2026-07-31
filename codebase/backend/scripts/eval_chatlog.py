@@ -19,7 +19,7 @@ load_lab_env(ROOT)
 
 from companion.answer import generate
 from companion.retriever import load_corpus, search as corpus_search
-from companion.scope import detect_intent, detect_scope
+from companion.classify import classify_turn
 from providers import make_provider
 
 
@@ -101,8 +101,17 @@ def run_evaluation(limit: int | None = None) -> dict[str, Any]:
         page = st_data["page"] or 1
         selection = st_data["selection"]
 
-        intent = detect_intent(raw_query)
-        scope_res = detect_scope(raw_query, has_selection=bool(selection.strip()), current_day="day01", current_page=page)
+        # Phân tích hàng loạt 1.261 lượt: use_llm=False để không thả 1.261 lời gọi
+        # classifier ra ngoài, nhưng vẫn đi qua cùng một điểm vào với pipeline.
+        decision = classify_turn(
+            raw_query,
+            has_selection=bool(selection.strip()),
+            current_day="day01",
+            current_page=page,
+            use_llm=False,
+        )
+        intent = decision.intent
+        scope_res = decision.scope_result
 
         intent_counts[intent] = intent_counts.get(intent, 0) + 1
         scope_counts[scope_res.scope] = scope_counts.get(scope_res.scope, 0) + 1

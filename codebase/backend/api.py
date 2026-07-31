@@ -17,9 +17,11 @@ from env_loader import load_lab_env
 
 load_lab_env(ROOT)
 
-from companion.answer import generate
+from companion.answer import REFUSAL_ASSESSMENT, REFUSAL_OUT_OF_SCOPE, generate
+from companion.classify import classify_turn
 from companion.retriever import Chunk, load_corpus, search as corpus_search, transcript_paths
-from companion.routing import should_try_external
+from companion.routing import should_suggest_ta, should_try_external
+from companion.safety import external_support_policy, screen_query
 from companion.scope import ScopeResult, detect_intent, detect_scope
 from companion.ta_notifier import notify_ta_channel
 from companion.trace import build_record, write_turn_trace
@@ -89,6 +91,8 @@ class DetectScopeRequest(BaseModel):
     current_day: str = "day01"
     current_page: int = 1
     selection: str = ""
+    # Tắt để lấy kết quả thuần luật, tất định — dùng khi cần truy lỗi định tuyến.
+    use_llm: bool = True
 
 
 class DetectScopeResponse(BaseModel):
@@ -283,6 +287,10 @@ def health_check() -> dict[str, Any]:
         "status": "online",
         "active_provider": provider_type,
         "default_model": getattr(provider, "default_model", None) if provider else os.getenv("NVIDIA_MODEL"),
+        # Phơi ra để một default chết (model không tồn tại -> 404) không âm thầm vô hiệu
+        # hoá cả tầng phân loại nhanh như đã từng xảy ra với google/gemma-3-1b-it.
+        "fast_model": os.getenv("NVIDIA_FAST_MODEL", "meta/llama-3.1-8b-instruct"),
+        "external_support_policy": external_support_policy(),
         "corpus_chunks_loaded": len(CORPUS),
         "transcript_files_loaded": len(transcript_paths()),
         "corpus_by_day": corpus_by_day,
@@ -292,7 +300,15 @@ def health_check() -> dict[str, Any]:
 # 1. DETECT INTENT
 @app.post("/api/v1/detect-intent", response_model=DetectIntentResponse)
 def detect_intent_api(req: DetectIntentRequest) -> DetectIntentResponse:
-    intent_str = detect_intent(req.query)
+    # Đi qua cùng một điểm vào với pipeline, nếu không endpoint lẻ sẽ nói một đằng
+    # còn /companion/chat làm một nẻo.
+    intent_str = classify_turn(
+        req.query,
+        has_selection=False,
+        current_day="day01",
+        current_page=1,
+        provider=get_active_provider(),
+    ).intent
     intent_desc = {
         "summary": "Nhu cầu tóm tắt/tổng hợp nội dung",
         "explain": "Nhu cầu giải thích khái niệm/bài tập",
@@ -306,12 +322,14 @@ def detect_intent_api(req: DetectIntentRequest) -> DetectIntentResponse:
 # 2. DETECT SCOPE
 @app.post("/api/v1/detect-scope", response_model=DetectScopeResponse)
 def detect_scope_api(req: DetectScopeRequest) -> DetectScopeResponse:
-    scope_res = detect_scope(
+    scope_res = classify_turn(
         req.query,
         has_selection=bool(req.selection.strip()),
         current_day=req.current_day,
         current_page=req.current_page,
-    )
+        provider=get_active_provider() if req.use_llm else None,
+        use_llm=req.use_llm,
+    ).scope_result
     return DetectScopeResponse(
         query=req.query,
         scope=scope_res.scope,
@@ -405,18 +423,21 @@ def generate_response_api(req: GenerateResponseRequest) -> GroundedAnswerPayload
 @app.post("/api/v1/companion/chat", response_model=ChatPipelineResponse)
 def full_chat_pipeline(req: ChatPipelineRequest) -> ChatPipelineResponse:
     provider = get_active_provider(req.provider)
-    intent = detect_intent(req.query)
-    scope_res = detect_scope(
+    decision = classify_turn(
         req.query,
         has_selection=bool(req.selection.strip()),
         current_day=req.current_day,
         current_page=req.current_page,
+        provider=provider,
     )
+    intent = decision.intent
+    scope_res = decision.scope_result
 
     if req.forced_scope:
         scope_res.scope = req.forced_scope
         scope_res.confidence = "cao"
         scope_res.reason = "Bạn đã chọn phạm vi này khi mình hỏi lại."
+        scope_res.origin = "forced"
 
     chunks = corpus_search(req.query, scope_res, CORPUS, selection=req.selection)
     if (
@@ -448,6 +469,23 @@ def full_chat_pipeline(req: ChatPipelineRequest) -> ChatPipelineResponse:
         answer = generate(req.query, scope_res, chunks, provider=provider, model=req.model)
 
     citations = build_citation_payloads(answer, chunks)
+
+    # ---- Lớp phòng thủ cuối: câu không được phép trả lời thì không được mang citation.
+    # Bốn critical failure của v3 đều cùng một hình dạng: định tuyến sai -> sinh câu trả
+    # lời -> gắn kèm [Trang 3] khiến nó trông có căn cứ. Bất biến này khiến chuyện đó bất
+    # khả thi về cấu trúc, bất kể luật hay LLM ở trên có quyết sai thế nào.
+    if scope_res.scope in ("out_of_scope", "ambiguous") or intent in (
+        "out_of_scope",
+        "prompt_attack",
+        "logistics",
+    ):
+        citations = []
+    verdict = screen_query(req.query)
+    if verdict and answer["sources"]:
+        citations = []
+        answer["text"] = REFUSAL_ASSESSMENT if verdict.family == "graded" else REFUSAL_OUT_OF_SCOPE
+        answer["mode"] = "guardrail"
+
     verified_sources = source_values(citations)
     answer["sources"] = verified_sources
     record = build_record(
@@ -473,14 +511,13 @@ def full_chat_pipeline(req: ChatPipelineRequest) -> ChatPipelineResponse:
         and answer["mode"] in ("external", "mock")
         and verified_sources
     )
-    suggest_ta = bool(
-        scope_res.scope != "conversation"
-        and (
-            scope_res.scope in ("out_of_scope", "ambiguous")
-            or (not chunks and not external_success)
-            or answer["mode"] in ("mock", "guardrail")
-            or (chunks and not verified_sources)
-        )
+    suggest_ta = should_suggest_ta(
+        scope=scope_res.scope,
+        mode=answer["mode"],
+        chunks=chunks,
+        verified_sources=verified_sources,
+        answer_text=answer["text"],
+        external_success=external_success,
     )
 
     return ChatPipelineResponse(

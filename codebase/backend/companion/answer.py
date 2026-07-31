@@ -8,6 +8,7 @@ import time
 from typing import Any
 
 from companion.retriever import Chunk
+from companion.safety import screen_query
 from companion.scope import is_prohibited_assessment_request
 from companion.tavily_search import tavily_search_external_citations
 from companion.text import fold_text
@@ -419,9 +420,16 @@ def generate(query: str, scope_result, chunks: list[Chunk], *, provider=None, mo
             enabled=include_external_citations,
         )
 
-    # Ngoài phạm vi -> từ chối hữu ích
+    # Ngoài phạm vi -> từ chối hữu ích.
+    # Từ chối vì đây là bài được chấm điểm thì phải nói rõ lý do sư phạm và đưa lối đi
+    # thay thế ("giải thích khái niệm, gợi ý từng bước"), chứ không dùng câu từ chối
+    # chung chung — người học bị chặn mà không biết mình được giúp cách nào khác.
+    # Dùng screen_query thay is_prohibited_assessment_request vì hàm cũ chỉ khớp vài cụm
+    # nguyên văn, nên "xin lời giải câu cuối bài kiểm tra để mình nộp luôn" lọt qua.
     if scope_result.scope == "out_of_scope":
-        result["text"] = REFUSAL_ASSESSMENT if is_prohibited_assessment_request(query) else REFUSAL_OUT_OF_SCOPE
+        verdict = screen_query(query)
+        is_graded = verdict.family == "graded" if verdict else is_prohibited_assessment_request(query)
+        result["text"] = REFUSAL_ASSESSMENT if is_graded else REFUSAL_OUT_OF_SCOPE
         return result
 
     # Mơ hồ -> HỎI LẠI
