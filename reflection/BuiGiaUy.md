@@ -1,6 +1,6 @@
 # Reflection - Bùi Gia Uy
 
-- Mã học viên: `2A202601867`
+- Mã học viên: `Cần bổ sung`
 - Họ tên: Bùi Gia Uy
 - Phần phụ trách theo lịch sử commit: kiến trúc backend ban đầu (pipeline scope → retrieve
   → answer → trace), lớp provider đa nhà cung cấp, golden set và eval, UX chat ở frontend,
@@ -63,7 +63,7 @@ limit và backoff. Nhờ vậy đổi nhà cung cấp không phải sửa pipeli
 
 **Golden set và eval** (`01207bc`, `6791b78`): bổ sung case và sửa script chấm.
 
-**Đợt nâng cấp định tuyến 31/07** (`bf963e1`, `107ecee`, `52e55fd`) — phần
+**Đợt nâng cấp định tuyến 31/07** (`bf963e1`, `107ecee`, cộng đợt sửa chưa commit) — phần
 này làm cùng AI, xem mục 2.
 
 > ⚠️ **Cần bạn tự xác nhận trước khi nộp:** đọc lại `scope.py` và `providers/base.py`, chắc
@@ -91,8 +91,8 @@ overall 11/31 → **25/31 (80.65%)**, decision pass 38.71% → **96.77%**, criti
 **Bắt mỗi thay đổi định tuyến phải có regression test**, đúng luật
 [CLAUDE.md:30](../codebase/docs/CLAUDE.md#L30). Test đi từ 37 lên 92.
 
-**Tự test tay bằng câu hỏi dài, và tìm ra 3 lỗi mà eval không bắt được** (đã commit tại
-`52e55fd`). Đây là chỗ tôi đóng góp nhiều nhất ngoài việc chạy script:
+**Tự test tay bằng câu hỏi dài, và tìm ra 3 lỗi mà eval không bắt được** (đợt sửa chưa
+commit ở mục trên). Đây là chỗ tôi đóng góp nhiều nhất ngoài việc chạy script:
 - Câu *"Tuần sau mình có bài kiểm tra giữa kỳ nên cần ôn lại, recap giúp mình cả deck"* bị
   **từ chối thẳng**. Model 8B gán `intent: logistics` chỉ vì thấy chữ "bài kiểm tra", và
   code đang ép thành `out_of_scope`. Lập luận ban đầu của AI — *"chấp nhận model chủ động

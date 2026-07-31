@@ -14,7 +14,7 @@
 | 4 | **1-2 bằng chứng đầu tiên** | Mining `1,261` lượt hỏi-đáp VLearn: `156/1,261` lượt (`12.4%`) có nhu cầu summary/tổng hợp; `87/156` lượt summary (`55.8%`) gặp phản hồi kiểu "không tìm thấy / không truy cập được / rất tiếc"; `101/156` lượt summary (`64.7%`) không có citation; tổng thể `582/1,261` lượt tutor trả lời citation rỗng (`46.2%`) |
 | 5 | **Lát cắt MỘT CÂU** | Học viên đang ôn lại trên VLearn hỏi về một slide/tài liệu/buổi học, hệ thống nhận diện đúng phạm vi context cần đọc, truy xuất slide liên quan và trả lời có citation hoặc chuyển TA khi độ tin cậy thấp |
 | 6 | **AI tự làm đến đâu + 1 dòng lý do** | **Conditional automation**: AI tự trả lời khi tìm được căn cứ và citation đủ tin cậy; nếu thiếu dữ liệu, scope mơ hồ, hoặc câu hỏi vượt phạm vi thì hỏi lại/chuyển TA, vì trả lời sai có thể làm học viên hiểu sai kiến thức |
-| 7 | **>=3 người sẽ thử + phân công có tên** | **Blocker:** willing users chưa được xác nhận, không điền tên giả. Phân công: Nguyễn Chí Hiếu (`2A202601931`) evidence/eval/grounding/integration; Nguyễn Anh Trà (`2A202601735`) backend/API/retrieval/TA; Trần Văn Tài (`2A202601339`) frontend/PDF/citation UX; Bùi Gia Uy (`2A202601867`) prototype/routing/eval/docs. Owner validation/demo chưa chốt. |
+| 7 | **>=3 người sẽ thử + phân công có tên** | Willing users: `[Tên 1]`, `[Tên 2]`, `[Tên 3]` - học viên K3 dùng VLearn. Phân công: `[Tên A]` evidence/mining, `[Tên B]` spec, `[Tên C]` prompt/eval, `[Tên D]` prototype, `[Tên E]` validation/demo |
 
 ## Slide 1 - Problem: Tutor đang nhìn hẹp
 

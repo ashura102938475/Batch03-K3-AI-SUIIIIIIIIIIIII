@@ -201,21 +201,16 @@ Loại: [x] Tối ưu tính năng có sẵn  [ ] Tính năng mới
 | Lượt 1 (Baseline VLearn Tutor) | 30/07 11:00 | 20 | 35.0% | 35.3% | 15.0% | Fail nhiều ở broad summary (55.8% no-access) & empty citation (64.7%). |
 | Lượt 2 (v2 Regression) | 30/07 16:44 | 23 | 100.0% | 100.0% source-membership | Chưa đo semantic | 23/23, nhưng case và scorer bám sát implementation. |
 | Lượt 3 (v3 Robustness) | 30/07 17:10 | 31 | 58.06% | 64.71% claim-level | 6 critical fail | 16/31; backlog chính là paraphrase scope, safety paraphrase và conditional handoff. |
-| Lượt 4 (v3 sau hybrid classifier + safety gate) | 31/07 12:33 | 31 | 100.0% | 70.59% claim-level | 0 critical fail | 25/31 (80.65%); qua overall/decision/live/safety, chưa qua citation grounding và P90 latency 18.5s. |
 
 ---
 
 ## §8. Phân Công & Kế Hoạch
 
-- **Phân công có tên:**
-  - **Backend API, provider/model, retrieval, tích hợp TA:** Nguyễn Anh Trà
-    (`2A202601735`, `ashura102938475`).
-  - **Data Evidence, Golden Set Eval, Grounding & Integration:** Nguyễn Chí Hiếu
-    (`2A202601931`, `Hieunc2910`).
-  - **Frontend, PDF Reader & Citation UX:** Trần Văn Tài
-    (`2A202601339`, `codecuatai`).
-  - **Prototype ban đầu, Setup, Routing/Eval & Docs:** Bùi Gia Uy
-    (`2A202601867`, `BuiGiaUy`).
+- **Phân công có tên (theo lịch sử commit, cần bổ sung mã HV/họ tên trong README):**
+  - **Backend API, provider/model, tích hợp TA:** `ashura102938475`.
+  - **Data Evidence, Golden Set Eval & Grounding:** `Hieunc2910`.
+  - **Frontend, PDF Reader & Citation UX:** `codecuatai`.
+  - **Prototype ban đầu, Setup & Docs:** Bùi Gia Uy (`BuiGiaUy`).
   - **Validation & Demo:** Chưa có owner được xác nhận; nhóm phải chốt trước khi user test.
 
 - **Willing users (≥3 học viên K3):** Chưa xác nhận. Chỉ điền sau khi người dùng đồng ý tham gia test.
@@ -233,5 +228,3 @@ Loại: [x] Tối ưu tính năng có sẵn  [ ] Tính năng mới
 |---|---|---|
 | 30/07 11:36 | Pull latest docs & data analysis từ main | Cập nhật số liệu mining chuẩn: 156/1,261 summary, 87 no-access, 101 empty citation. |
 | 30/07 11:45 | Tạo file `spec.md` hoàn chỉnh theo `03-template-ai-spec.md` trên branch `docs` | Chốt AI SPEC làm deliverable trung tâm cho dự án VLearn Smart Contextual Companion. |
-| 31/07 12:34 | Thêm hybrid classifier, hard safety gate và rerun v3 | Đưa scope accuracy lên 100%, critical failure từ 7 về 0; artifact tại `eval/EVAL_REPORT_V3.md`. |
-| 31/07 14:15 | Test tay câu dài và sửa routing/answer | Golden set câu ngắn không lộ ba lỗi: từ chối oan khi nhắc bài kiểm tra, hiểu sai “ngoài slide”, và lời chào có đuôi xưng hô. |

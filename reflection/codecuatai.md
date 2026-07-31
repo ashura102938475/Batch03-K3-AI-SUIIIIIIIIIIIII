@@ -1,9 +1,12 @@
-# Reflection - Trần Văn Tài
+# Reflection - codecuatai
 
-- Mã học viên: `2A202601339`
-- GitHub: `codecuatai`
-- Phần phụ trách theo lịch sử commit: frontend, PDF reader và chat/citation UX.
+- Mã học viên: Cần bổ sung
+- Họ tên: Cần xác nhận
+- Phần phụ trách theo lịch sử commit: Frontend, PDF reader và chat/citation UX.
 
 ## Nội dung cá nhân
 
-Chờ Trần Văn Tài tự hoàn thiện và xác nhận trước khi nộp.
+1. Phần tôi trực tiếp làm và có thể giải thích: Chờ thành viên hoàn thiện.
+2. AI đã hỗ trợ và cách tôi kiểm chứng: Chờ thành viên hoàn thiện.
+3. Failure/feedback làm tôi đổi quyết định: Chờ thành viên hoàn thiện.
+4. Ưu tiên nếu có thêm một tuần: Chờ thành viên hoàn thiện.
