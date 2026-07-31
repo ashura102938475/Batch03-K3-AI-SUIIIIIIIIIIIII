@@ -7,6 +7,6 @@ __pycache__/
 corpus/*.pdf
 corpus/transcript-*.md
 
-# Trace tự sinh — giữ tay vài file mẫu bằng `git add -f runs/<file>.json` để làm evidence
+# Runtime traces are local-only. Evaluation evidence belongs in the root eval/ folder.
 runs/*.json
 runs/*.jsonl

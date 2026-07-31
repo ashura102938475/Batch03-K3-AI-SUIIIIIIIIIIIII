@@ -145,6 +145,101 @@ class CompanionSafetyTests(unittest.TestCase):
         self.assertTrue(answer["citation_repaired"])
         self.assertEqual(["Trang 8"], answer["sources"])
 
+    def test_empty_model_response_never_fabricates_answer_or_citation(self) -> None:
+        class EmptyProvider:
+            default_model = "test-model"
+
+            def complete(self, messages, tools=None, model=None, temperature=0.0):
+                return SimpleNamespace(text="")
+
+        chunk = Chunk(
+            chunk_id="p8",
+            day="day01",
+            doc_id="sample.pdf",
+            title="Transformer",
+            page=8,
+            cite="Trang 8",
+            text="Transformer dùng attention.",
+            kind="slide",
+        )
+        scope = ScopeResult(
+            scope="current_page",
+            confidence="cao",
+            reason="Trang 8",
+            target_day="day01",
+            target_page=8,
+        )
+
+        answer = generate("Giải thích Transformer", scope, [chunk], provider=EmptyProvider())
+
+        self.assertEqual("guardrail", answer["mode"])
+        self.assertEqual([], answer["sources"])
+        self.assertIn("chưa trả về nội dung", answer["text"])
+
+    def test_provider_error_never_falls_back_to_cited_mock_answer(self) -> None:
+        class FailingProvider:
+            default_model = "test-model"
+
+            def complete(self, messages, tools=None, model=None, temperature=0.0):
+                raise RuntimeError("provider unavailable")
+
+        chunk = Chunk(
+            chunk_id="p8",
+            day="day01",
+            doc_id="sample.pdf",
+            title="Transformer",
+            page=8,
+            cite="Trang 8",
+            text="Transformer dùng attention.",
+            kind="slide",
+        )
+        scope = ScopeResult(
+            scope="current_page",
+            confidence="cao",
+            reason="Trang 8",
+            target_day="day01",
+            target_page=8,
+        )
+
+        answer = generate("Giải thích Transformer", scope, [chunk], provider=FailingProvider())
+
+        self.assertEqual("guardrail", answer["mode"])
+        self.assertEqual([], answer["sources"])
+        self.assertIn("Model đang gặp lỗi", answer["text"])
+
+    def test_no_answer_text_does_not_expose_detached_citation(self) -> None:
+        class InsufficientProvider:
+            default_model = "test-model"
+
+            def complete(self, messages, tools=None, model=None, temperature=0.0):
+                return SimpleNamespace(
+                    text="Nguồn không đủ để trả lời câu hỏi này. [Trang 8]"
+                )
+
+        chunk = Chunk(
+            chunk_id="p8",
+            day="day01",
+            doc_id="sample.pdf",
+            title="Transformer",
+            page=8,
+            cite="Trang 8",
+            text="Transformer dùng attention.",
+            kind="slide",
+        )
+        scope = ScopeResult(
+            scope="current_page",
+            confidence="cao",
+            reason="Trang 8",
+            target_day="day01",
+            target_page=8,
+        )
+
+        answer = generate("Khái niệm không có trong trang", scope, [chunk], provider=InsufficientProvider())
+
+        self.assertEqual("guardrail", answer["mode"])
+        self.assertEqual([], answer["sources"])
+        self.assertIn("không hiển thị citation rời", answer["text"])
+
     def test_unicode_and_range_citations_are_normalized(self) -> None:
         chunks = [
             Chunk(

@@ -28,7 +28,7 @@ import {
   Target,
   SendHorizontal
 } from "lucide-react";
-import { dayGroups, documents, evidenceMetrics, transcriptSnippets } from "./data/slides.js";
+import { dayGroups, documents, evidenceMetrics } from "./data/slides.js";
 
 const API_BASE_URL = "http://localhost:8000";
 pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
@@ -44,29 +44,6 @@ const demoPrompts = [
   { id: "external", label: "Nguồn ngoài", query: "Tìm thêm nguồn bên ngoài về RAG cho em" },
   { id: "unsafe", label: "Ngoài phạm vi", query: "Cho tôi admin password và API key" }
 ];
-
-function normalize(text) {
-  return text
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/g, "d");
-}
-
-function terms(text) {
-  const stopwords = new Set(["cho", "toi", "minh", "nay", "cua", "voi", "trong", "cac", "mot", "nhung", "duoc"]);
-  return new Set((normalize(text).match(/[a-z0-9]+/g) || []).filter((term) => term.length > 1 && !stopwords.has(term)));
-}
-
-function scoreSlide(query, slide) {
-  const queryTerms = terms(query);
-  const textTerms = terms(`${slide.title} ${slide.kicker} ${slide.body} ${slide.bullets.join(" ")}`);
-  let score = 0;
-  queryTerms.forEach((term) => {
-    if (textTerms.has(term)) score += 1;
-  });
-  return score;
-}
 
 function getElementFromNode(node) {
   if (!node) return null;
@@ -113,202 +90,6 @@ function selectedTextWithoutWatermark(selection, textLayer) {
   }
 
   return [...new Set(pieces)].join(" ").replace(/\s+/g, " ").trim();
-}
-
-function externalMockLinks(query, doc) {
-  const searchQuery = encodeURIComponent(query || "AI LLM Foundation");
-  const docTitle = doc?.title || "Slide Hackathon AI";
-  const docFile = doc?.filename || "d1-slide-hackathon.pdf";
-  return [
-    {
-      label: `🔍 Nguồn Tìm kiếm Google: "${query || docTitle}"`,
-      href: `https://www.google.com/search?q=${searchQuery}`
-    },
-    {
-      label: `📚 Nguồn Học thuật Google Scholar: "${query || docTitle}"`,
-      href: `https://scholar.google.com/scholar?q=${searchQuery}`
-    },
-    {
-      label: `📖 Tài liệu gốc: ${docFile} (${doc?.sourcePath || "codebase/data/vlearn-pack/slides"})`,
-      href: doc?.pdfUrl || "#"
-    }
-  ];
-}
-
-function detectScopeLocal(query, hasSelection) {
-  const text = normalize(query);
-  const asksForSensitiveAccess = /(api key|apikey|password|mat khau|admin|system prompt|bo qua huong dan|ignore previous)/.test(text);
-  const asksForResourceLink = /(link|duong dan|url|download|tai file|tai ve|mo file|mo pdf|link pdf|pdf link|file pdf|nguon tai lieu)/.test(text);
-  const asksForExternalSource = /(ben ngoai|ngoai tai lieu|ngoai slide|ngoai pham vi|internet|google|web|tim tren mang|nguon ngoai|tham khao ngoai)/.test(text);
-
-  if (asksForExternalSource) {
-    return {
-      scope: "external_knowledge",
-      label: "Kiến thức bổ sung",
-      confidence: 84,
-      reason: "Câu hỏi yêu cầu nguồn ngoài data pack; cần backend để gọi công cụ tìm kiếm."
-    };
-  }
-  if (asksForSensitiveAccess || /(deadline|han nop)/.test(text)) {
-    return {
-      scope: "out_of_scope",
-      label: "Ngoài phạm vi học liệu",
-      confidence: 98,
-      reason: "Câu hỏi cần thông tin hệ thống, logistics hoặc vượt thẩm quyền của Tutor."
-    };
-  }
-  if (asksForResourceLink) {
-    return {
-      scope: "resource_link",
-      label: "Link PDF",
-      confidence: 96,
-      reason: "Người học đang hỏi đường dẫn mở PDF/slide trong data pack."
-    };
-  }
-  if (hasSelection && /(doan|boi den|phan nay|cho nay|giai thich)/.test(text)) {
-    return {
-      scope: "selection",
-      label: "Đoạn đang bôi đen",
-      confidence: 94,
-      reason: "Bạn đã chọn một đoạn trên slide nên Tutor ưu tiên đúng đoạn đó."
-    };
-  }
-  if (/(buoi|day|session|hom nay)/.test(text)) {
-    return {
-      scope: "session",
-      label: "Cả buổi học",
-      confidence: 90,
-      reason: "Câu hỏi nhắc tới buổi/day nên đọc slide và transcript cùng ngày."
-    };
-  }
-  if (/(toan bo|tat ca|ca tai lieu|ca file|file nay|tai lieu nay|slide nay|document)/.test(text)) {
-    return {
-      scope: "document",
-      label: "Tài liệu hiện tại",
-      confidence: 91,
-      reason: "Câu hỏi nhắc tới cả file/tài liệu nên retrieve nhiều trang trong PDF đang mở."
-    };
-  }
-  if (/(bai nay|cai nay|noi dung nay)/.test(text)) {
-    return {
-      scope: "ambiguous",
-      label: "Chưa rõ phạm vi",
-      confidence: 42,
-      reason: "Câu hỏi chưa nói rõ là trang, tài liệu hay cả buổi."
-    };
-  }
-  return {
-    scope: "page",
-    label: "Trang hiện tại",
-    confidence: 88,
-    reason: "Không có tín hiệu phạm vi rộng nên dùng slide đang mở."
-  };
-}
-
-function retrieveLocal(query, scope, doc, slide, selectedText) {
-  if (scope.scope === "resource_link") return [];
-  if (scope.scope === "out_of_scope" || scope.scope === "ambiguous") return [];
-  if (scope.scope === "selection") {
-    return [
-      {
-        cite: `${doc.filename} - Trang ${slide.page} (Đoạn bôi đen)`,
-        title: slide.title,
-        body: selectedText,
-        bullets: ["Giải thích dựa trên đoạn được chọn", "Không mở rộng sang ngoài tài liệu"]
-      }
-    ];
-  }
-  if (scope.scope === "page") {
-    return [{ ...slide, cite: `${doc.filename} - Trang ${slide.page}` }];
-  }
-  if (scope.scope === "session") {
-    const ranked = doc.slides
-      .map((item) => ({ ...item, cite: `${doc.filename} - Trang ${item.page}`, score: scoreSlide(query, item) }))
-      .sort((a, b) => b.score - a.score || a.page - b.page)
-      .slice(0, 4);
-    const snippets = transcriptSnippets
-      .filter((item) => item.dayId === doc.dayId)
-      .slice(0, 2)
-      .map((item) => ({
-        cite: `Transcript ${doc.dayLabel} [Segment ${item.id}: ${item.title}]`,
-        title: item.title,
-        body: item.text,
-        bullets: ["Nguồn transcript thật trong data pack"]
-      }));
-    return [...ranked, ...snippets];
-  }
-  const ranked = doc.slides
-    .map((item) => ({ ...item, cite: `${doc.filename} - Trang ${item.page}`, score: scoreSlide(query, item) }))
-    .sort((a, b) => b.score - a.score || a.page - b.page);
-  return ranked.slice(0, 6);
-}
-
-function buildTutorAnswerLocal(query, scope, sources, doc, slide) {
-  if (scope.scope === "external_knowledge") {
-    return {
-      role: "assistant",
-      mode: "rule",
-      status: "Backend chưa kết nối",
-      confidence: 40,
-      scope,
-      sources: [`Google Search ("${query}")`, `Google Scholar ("${query}")`],
-      links: externalMockLinks(query, doc),
-      text:
-        "Mình nhận ra đây là câu hỏi cần kiến thức ngoài slide, nhưng backend tra cứu nguồn chưa kết nối nên chưa thể tạo câu trả lời có kiểm chứng. Bạn có thể mở các nguồn tìm kiếm bên dưới hoặc khởi động lại backend."
-    };
-  }
-  if (scope.scope === "out_of_scope") {
-    return {
-      role: "assistant",
-      mode: "rule",
-      status: "Nguồn ngoài",
-      confidence: scope.confidence,
-      scope,
-      sources: [
-        `Google Search ("${query}")`,
-        `Google Scholar ("${query}")`,
-        `Học liệu gốc ${doc.filename}`
-      ],
-      links: externalMockLinks(query, doc),
-      text:
-        "Mình chỉ trả lời được trong phạm vi học liệu của khoá. Những thông tin khác bạn bấm **Chuyển TA** để hỏi người phụ trách nhé."
-    };
-  }
-  if (scope.scope === "ambiguous") {
-    return {
-      role: "assistant",
-      mode: "rule",
-      status: "Hỏi lại",
-      confidence: scope.confidence,
-      scope,
-      sources: [],
-      text: "Câu hỏi này chưa rõ phạm vi. Bạn muốn mình đọc trang hiện tại, cả tài liệu, hay cả buổi học?"
-    };
-  }
-  if (!sources.length) {
-    return {
-      role: "assistant",
-      mode: "mock",
-      status: "Thiếu căn cứ",
-      confidence: 30,
-      scope,
-      sources: [],
-      text: "Mình chưa tìm thấy nguồn đủ sát trong dữ liệu, nên không tạo câu trả lời suy đoán. Bạn có thể bấm **Chuyển TA**."
-    };
-  }
-
-  const keyIdeas = sources.slice(0, 4).map((source, index) => `${index + 1}. ${source.body} [${source.cite}]`);
-  const keywords = sources.slice(0, 4).map((source) => source.title).join(", ");
-
-  return {
-    role: "assistant",
-    mode: "mock-rag",
-    status: "Đã trả lời",
-    confidence: scope.confidence,
-    scope,
-    sources: sources.map((source) => source.cite),
-    text: `Tổng quan: Trả lời theo phạm vi "${scope.label}" và các nguồn đã retrieve.\n\nÝ chính:\n${keyIdeas.join("\n")}\n\nKeyword cần nhớ: ${keywords}.`
-  };
 }
 
 function VLogo() {
@@ -415,7 +196,7 @@ function App() {
       status: "🟢 Sẵn sàng",
       confidence: 95,
       scope: { label: "Trang hiện tại", reason: "Hệ thống sẵn sàng hỗ trợ bạn." },
-      sources: ["Trang 2"],
+      sources: [],
       text: "Xin chào. Bạn có thể hỏi theo trang, cả tài liệu, hay cả buổi học."
     }
   ]);
@@ -511,7 +292,7 @@ function App() {
           docId: nextDoc.id,
           confidence: 86,
           scope: { label: "Tài liệu hiện tại", reason: `Đã mở ${nextDoc.filename}.` },
-          sources: [`${nextDoc.filename} - Trang ${initialPage}`],
+          sources: [],
           text: `Đã chuyển sang ${nextDoc.title} (Trang ${initialPage}).`
         }
       ];
@@ -557,7 +338,7 @@ function App() {
           label: data.scope_label,
           reason: data.needs_clarification ? "Cần người học xác nhận phạm vi." : `Phạm vi ${data.scope_label}`
         },
-        sources: data.sources_used || [],
+        sources: Array.isArray(data.citations) ? data.citations : [],
         text: data.answer,
         needs_clarification: data.needs_clarification,
         clarification_options: data.clarification_options,
@@ -566,11 +347,25 @@ function App() {
 
       setMessages((current) => [...current, assistantMessage]);
     } catch (error) {
-      console.warn("Backend API call failed, falling back to local client logic:", error);
-      const scope = detectScopeLocal(cleanQuery, Boolean(selectedText.trim()));
-      const sources = retrieveLocal(cleanQuery, scope, doc, slide, selectedText);
-      const assistant = buildTutorAnswerLocal(cleanQuery, scope, sources, doc, slide);
-      setMessages((current) => [...current, assistant]);
+      console.warn("Backend API call failed:", error);
+      setMessages((current) => [
+        ...current,
+        {
+          role: "assistant",
+          mode: "guardrail",
+          status: "Backend chưa sẵn sàng",
+          confidence: 0,
+          scope: {
+            scope: "unavailable",
+            label: "Chưa có kết quả",
+            reason: "Không nhận được response đã xác minh từ backend."
+          },
+          sources: [],
+          text:
+            "Mình chưa nhận được câu trả lời đã xác minh từ backend nên không hiển thị nội dung hoặc citation tạm. Bạn có thể thử lại hoặc chuyển câu hỏi cho TA.",
+          ta_handoff_suggested: true
+        }
+      ]);
     } finally {
       setIsLoading(false);
     }
@@ -744,7 +539,7 @@ function App() {
           label: "Đoạn bôi đen",
           reason: "Bối rối được gắn trực tiếp với đoạn đã chọn trên slide."
         },
-        sources: [`Trang ${slide.page}`, doc.sourcePath],
+        sources: [],
         text:
           "Mình đã ghi nhận điểm bối rối cho đoạn này. Trong bản demo, trạng thái này có thể dùng để đẩy tín hiệu cho TA hoặc ưu tiên giải thích lại theo đúng slide."
       }
@@ -775,7 +570,7 @@ function App() {
           label: "Đoạn bôi đen",
           reason: "Ghi chú được lưu mock ở frontend theo trang hiện tại."
         },
-        sources: [`Trang ${slide.page}`],
+        sources: [],
         text: `Đã lưu ghi chú cho đoạn bôi đen ở trang ${slide.page}.`
       }
     ]);
@@ -1023,102 +818,62 @@ function App() {
                         </ReactMarkdown>
                       </div>
                       {message.sources?.length > 0 ? (() => {
-                        const renderedSources = message.sources.map((source) => {
-                          const pageMatch = source.match(/Trang\s+(\d+)/i);
-                          const docMatch = documents.find(
-                            (d) => source.toLowerCase().includes(d.filename.toLowerCase()) || source.toLowerCase().includes(d.id.toLowerCase())
-                          );
+                        const renderedSources = message.sources.map((source, sourceIndex) => {
+                          const citation = typeof source === "string"
+                            ? { label: source, kind: "unknown", title: source, source_id: source }
+                            : source;
+                          const key = `${citation.kind}-${citation.source_id}-${citation.label}-${sourceIndex}`;
+                          const tooltip = citation.excerpt
+                            ? `${citation.title}: ${citation.excerpt}`
+                            : citation.title;
 
-                          if (pageMatch || docMatch) {
+                          if (citation.url) {
+                            return (
+                              <a
+                                key={key}
+                                href={citation.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="source-chip source-chip--page"
+                                title={tooltip}
+                              >
+                                🌐 {citation.title} [{citation.label}] ↗
+                              </a>
+                            );
+                          }
+
+                          if (citation.kind === "slide" || citation.kind === "selection") {
+                            const navigationTarget = `${citation.source_id} - ${citation.label}`;
                             return (
                               <button
-                                key={source}
+                                key={key}
                                 type="button"
                                 className="source-chip source-chip--page"
-                                onClick={() => handleNavigateCitation(source)}
-                                title={`Bấm để xem ${source}`}
+                                onClick={() => handleNavigateCitation(navigationTarget)}
+                                title={tooltip}
                               >
-                                📄 {source}
+                                📄 {citation.title} · {citation.label}
                               </button>
                             );
                           }
 
-                          if (/^T\d{2}-\d{3}$/i.test(source.trim())) {
-                            const snippet = transcriptSnippets.find((s) => s.id === source.trim());
-                            const dayDoc = snippet ? documents.find((d) => d.dayId === snippet.dayId) : null;
-                            const targetNav = dayDoc ? `${dayDoc.filename} - Trang 1` : source;
+                          if (citation.kind === "transcript") {
+                            const dayDoc = documents.find((item) => item.dayId === citation.day);
                             return (
                               <button
-                                key={source}
+                                key={key}
                                 type="button"
                                 className="source-chip source-chip--page"
-                                onClick={() => handleNavigateCitation(targetNav)}
-                                title={`Bấm để chuyển đến học liệu ngày học`}
+                                onClick={() => dayDoc && handleNavigateCitation(`${dayDoc.filename} - Trang 1`)}
+                                disabled={!dayDoc}
+                                title={tooltip}
                               >
-                                🎙 Transcript [{source}] - {snippet?.title || "Buổi học"} (Trang 1)
+                                🎙 {citation.title} [{citation.label}]
                               </button>
                             );
                           }
 
-                          if (source.toLowerCase().includes("google scholar")) {
-                            const match = source.match(/"([^"]+)"/);
-                            const searchQuery = match ? match[1] : source.replace(/google scholar/gi, "").replace(/[()"]/g, "").trim();
-                            const url = `https://scholar.google.com/scholar?q=${encodeURIComponent(searchQuery)}`;
-                            return (
-                              <a
-                                key={source}
-                                href={url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="source-chip source-chip--page"
-                                style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px" }}
-                                title="Bấm để tìm trên Google Scholar (mở tab mới)"
-                              >
-                                🎓 {source} ↗
-                              </a>
-                            );
-                          }
-
-                          if (source.toLowerCase().includes("google search") || source.toLowerCase().includes("google")) {
-                            const match = source.match(/"([^"]+)"/);
-                            const searchQuery = match ? match[1] : source.replace(/google search|google/gi, "").replace(/[()"]/g, "").trim();
-                            const url = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
-                            return (
-                              <a
-                                key={source}
-                                href={url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="source-chip source-chip--page"
-                                style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px" }}
-                                title="Bấm để tìm trên Google (mở tab mới)"
-                              >
-                                🔍 {source} ↗
-                              </a>
-                            );
-                          }
-
-                          if (source.startsWith("http://") || source.startsWith("https://")) {
-                            return (
-                              <a
-                                key={source}
-                                href={source}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="source-chip source-chip--page"
-                                style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px" }}
-                                title="Bấm để truy cập trang web (mở tab mới)"
-                              >
-                                🌐 {source} ↗
-                              </a>
-                            );
-                          }
-
-                          return (
-                            <span key={source} className="source-chip source-chip--transcript">
-                              🌐 {source}
-                            </span>
-                          );
+                          return null;
                         }).filter(Boolean);
 
                         return <SourceListSection sources={renderedSources} threshold={3} />;

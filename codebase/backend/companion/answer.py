@@ -126,11 +126,24 @@ EXTERNAL_CONTEXT_SIGNALS = (
     "kiến thức ngoài", "nguồn ngoài", "tham khảo thêm", "mở rộng thêm",
     "thông tin mới nhất", "tài liệu bên ngoài",
 )
+NO_ANSWER_SIGNALS = (
+    "chua du can cu de tra loi",
+    "khong du thong tin de tra loi",
+    "khong tim thay thong tin de tra loi",
+    "khong the tra loi dua tren",
+    "nguon khong du de tra loi",
+    "khong co thong tin trong nguon",
+)
 
 
 def _wants_external_context(query: str) -> bool:
     folded = query.casefold()
     return any(signal in folded for signal in EXTERNAL_CONTEXT_SIGNALS)
+
+
+def _is_no_answer_response(text: str) -> bool:
+    folded = fold_text(text)
+    return not folded.strip() or any(signal in folded for signal in NO_ANSWER_SIGNALS)
 
 
 def _normalize_citation_label(label: str) -> str:
@@ -298,7 +311,7 @@ def _generate_external(
                     result["citation_repaired"] = True
             except Exception:
                 pass
-        if not text or invalid or not valid:
+        if not text or invalid or not valid or _is_no_answer_response(text):
             result["text"] = (
                 "Mình đã tìm được nguồn ngoài nhưng chưa thể xác minh citation trong câu trả lời vừa tạo. "
                 "Bạn có thể thử lại hoặc bấm **Chuyển TA**."
@@ -307,7 +320,7 @@ def _generate_external(
             result["error"] = (
                 f"Invalid external citations: {invalid}"
                 if invalid
-                else "The model returned no parseable external citation."
+                else "The model returned no grounded external answer."
             )
         else:
             result["text"] = text
@@ -315,9 +328,12 @@ def _generate_external(
             result["mode"] = "external"
             result["model"] = model or getattr(provider, "default_model", None)
     except Exception as exc:
-        result["text"] = _external_mock_answer(sources)
-        result["sources"] = [source["url"] for source in sources]
-        result["mode"] = "mock"
+        result["text"] = (
+            "Mình đã tìm được nguồn ngoài nhưng model chưa tạo được câu trả lời có citation đã xác minh. "
+            "Bạn có thể thử lại hoặc bấm **Chuyển TA**."
+        )
+        result["sources"] = []
+        result["mode"] = "guardrail"
         result["error"] = f"{type(exc).__name__}: {exc}"
     result["latency_ms"] = int((time.perf_counter() - started) * 1000)
     return result
@@ -421,9 +437,18 @@ def generate(query: str, scope_result, chunks: list[Chunk], *, provider=None, mo
     started = time.perf_counter()
     try:
         response = provider.complete(messages, tools=None, model=model, temperature=0.0)
-        base_text = _strip_empty_easy_confusion(
-            (response.text or "").strip() or _mock_answer(query, chunks)
-        )
+        raw_text = (response.text or "").strip()
+        if not raw_text:
+            result["text"] = (
+                "Model chưa trả về nội dung nên mình không thể xác minh câu trả lời hoặc citation. "
+                "Bạn có thể thử lại hoặc bấm **Chuyển TA**."
+            )
+            result["mode"] = "guardrail"
+            result["error"] = "The model returned an empty response."
+            result["latency_ms"] = int((time.perf_counter() - started) * 1000)
+            return result
+
+        base_text = _strip_empty_easy_confusion(raw_text)
         result["mode"] = "live"
         result["model"] = model or getattr(provider, "default_model", None)
 
@@ -470,6 +495,18 @@ def generate(query: str, scope_result, chunks: list[Chunk], *, provider=None, mo
             result["latency_ms"] = int((time.perf_counter() - started) * 1000)
             return result
 
+        if _is_no_answer_response(base_text):
+            result["mode"] = "guardrail"
+            result["sources"] = []
+            result["text"] = (
+                "Nguồn đã truy xuất chưa đủ để tạo câu trả lời có căn cứ. "
+                "Mình không hiển thị citation rời vì chúng chưa hỗ trợ một câu trả lời cụ thể. "
+                "Bạn có thể thử lại với phạm vi khác hoặc bấm **Chuyển TA**."
+            )
+            result["error"] = "The model indicated that the retrieved sources were insufficient."
+            result["latency_ms"] = int((time.perf_counter() - started) * 1000)
+            return result
+
         # External material is opt-in, not appended to every grounded answer.
         if include_external_citations and os.getenv("TAVILY_API_KEY") and _wants_external_context(query):
             ext_results = tavily_search_external_citations(query, max_results=3)
@@ -483,9 +520,12 @@ def generate(query: str, scope_result, chunks: list[Chunk], *, provider=None, mo
         result["text"] = base_text
 
     except Exception as exc:
-        result["text"] = _mock_answer(query, chunks)
-        result["sources"] = [c.cite for c in chunks]
-        result["mode"] = "mock"
+        result["text"] = (
+            "Model đang gặp lỗi nên mình chưa thể tạo câu trả lời có citation đã xác minh. "
+            "Bạn có thể thử lại hoặc bấm **Chuyển TA**."
+        )
+        result["sources"] = []
+        result["mode"] = "guardrail"
         result["error"] = f"{type(exc).__name__}: {exc}"
     result["latency_ms"] = int((time.perf_counter() - started) * 1000)
     return result
