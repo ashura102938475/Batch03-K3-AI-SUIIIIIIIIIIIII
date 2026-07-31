@@ -4,7 +4,12 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from companion.answer import _strip_empty_easy_confusion, _validate_citations, generate
+from companion.answer import (
+    _strip_empty_easy_confusion,
+    _strip_template_meta,
+    _validate_citations,
+    generate,
+)
 from companion.retriever import Chunk, load_corpus, search
 from companion.routing import should_suggest_ta, should_try_external
 from companion.scope import (
@@ -12,8 +17,10 @@ from companion.scope import (
     detect_intent,
     detect_scope,
     detect_scope_llm,
+    is_conversation,
     is_floor_ambiguous,
     is_information_request,
+    wants_external_knowledge,
 )
 from companion.tavily_search import _source_priority
 
@@ -494,6 +501,92 @@ class ScopeControlFlowTests(unittest.TestCase):
 
     def test_specific_concept_question_is_not_floor_ambiguous(self):
         self.assertFalse(is_floor_ambiguous("reward function ảnh hưởng precision và recall ra sao"))
+
+
+class LectureContextIsNotWebLookupTests(unittest.TestCase):
+    """"Thầy nói thêm ngoài slide" là transcript — thứ NẰM TRONG học liệu — chứ không
+    phải yêu cầu tra web. Định tuyến sai ở đây làm mất luôn phần lời giảng."""
+
+    def test_teacher_said_beyond_the_slide_is_not_external(self):
+        query = (
+            "Hôm buổi số hai mình nghỉ mất. Bạn tổng hợp lại toàn bộ buổi đó giúp mình, "
+            "cả phần slide lẫn phần thầy nói thêm ngoài slide nếu có."
+        )
+        self.assertFalse(wants_external_knowledge(query))
+        result = detect_scope(query, has_selection=False, current_day="day01", current_page=3)
+        # "buổi số hai" viết số bằng chữ nên DAY_PATTERN không bắt được -> đây là ca luật
+        # nhường cho LLM. Điều phải khoá lại là nó KHÔNG bị đẩy sang tra web.
+        self.assertNotEqual("external_knowledge", result.scope)
+        self.assertEqual("fallthrough", result.origin)
+
+    def test_lecture_question_resolves_to_whole_session_via_adjudication(self):
+        from companion.classify import classify_turn
+
+        class _Fake:
+            def complete(self, messages, tools=None, *, model=None, temperature=0.0, tool_choice=None):
+                class R:
+                    text = '{"intent":"summary","scope":"whole_session","target_day":2}'
+                    tool_calls = []
+                    raw = None
+
+                return R()
+
+        decision = classify_turn(
+            "Hôm buổi số hai mình nghỉ mất, tổng hợp lại toàn bộ buổi đó gồm cả phần thầy nói thêm ngoài slide",
+            has_selection=False, current_day="day01", current_page=3, provider=_Fake(),
+        )
+        self.assertEqual("whole_session", decision.scope_result.scope)
+        self.assertEqual("day02", decision.scope_result.target_day)
+
+    def test_explicit_web_lookup_is_still_external(self):
+        self.assertTrue(wants_external_knowledge("cái này tìm trên web giúp mình với"))
+        self.assertTrue(wants_external_knowledge("bạn tra google xem có nguồn ngoài nào không"))
+
+    def test_beyond_the_slide_without_lecture_context_is_still_external(self):
+        self.assertTrue(wants_external_knowledge("giải thích thêm kiến thức ngoài slide về attention"))
+
+
+class GreetingToleratesAddressSuffixTests(unittest.TestCase):
+    def test_greeting_with_address_suffix_is_conversation(self):
+        for query in ("xin chào bạn", "chào tutor", "hello bot", "cảm ơn bạn nhé"):
+            with self.subTest(query=query):
+                self.assertTrue(is_conversation(query))
+
+    def test_greeting_scope_does_not_offer_ta(self):
+        result = detect_scope("xin chào bạn", has_selection=False, current_day="day01", current_page=1)
+        self.assertEqual("conversation", result.scope)
+        self.assertFalse(
+            should_suggest_ta(
+                scope=result.scope, mode="rule", chunks=[], verified_sources=[], answer_text=""
+            )
+        )
+
+    def test_a_real_question_is_never_mistaken_for_a_greeting(self):
+        for query in ("chào bạn, Transformer là gì", "tóm tắt tài liệu này bạn"):
+            with self.subTest(query=query):
+                self.assertFalse(is_conversation(query))
+
+
+class TemplateMetaStrippingTests(unittest.TestCase):
+    """Prompt yêu cầu câu trả lời chi tiết, và model càng viết dài thì càng hay tự bình
+    luận về chính khuôn mẫu ('Không có mục Phần dễ nhầm vì NGUỒN không nêu...').
+    Câu đó lộ hậu trường, không dạy được gì, và nằm ngoài tầm với của
+    _strip_empty_easy_confusion vì không đứng dưới tiêu đề nào."""
+
+    def test_meta_commentary_about_the_template_is_removed(self):
+        text = (
+            'Không có câu hỏi nào yêu cầu tạo mục "Phần dễ nhầm" vì trong NGUỒN không nêu '
+            "một nhầm lẫn cụ thể. Do đó, câu trả lời chỉ tập trung vào các ý trên."
+        )
+        self.assertEqual("", _strip_template_meta(text))
+
+    def test_real_misconception_section_is_preserved(self):
+        text = "Phần dễ nhầm: Nhiều người tưởng token là một từ, thực ra token nhỏ hơn từ. [Trang 8]"
+        self.assertEqual(text, _strip_template_meta(text))
+
+    def test_ordinary_content_lines_are_untouched(self):
+        text = "1. **Transformer là bước ngoặt** — cho phép mỗi từ nhìn sang từ khác. [Trang 8]"
+        self.assertEqual(text, _strip_template_meta(text))
 
 
 class TaHandoffFlagTests(unittest.TestCase):

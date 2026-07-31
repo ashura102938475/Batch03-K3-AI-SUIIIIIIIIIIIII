@@ -34,11 +34,22 @@ EXTERNAL_SUPPORT_SIGNALS = (
     "cai dat pytorch", "pytorch tren macos", "loi cai dat thu vien",
     "sua may tinh", "cau hinh wifi",
 )
-EXTERNAL_KNOWLEDGE_SIGNALS = (
-    "kien thuc ngoai", "nguon ngoai", "nguon ben ngoai", "ben ngoai slide",
-    "ngoai slide", "ngoai tai lieu", "tim tren web", "tim tren mang",
-    "tra tren web", "internet", "google", "tham khao them", "mo rong them",
+# Nói thẳng là muốn ra khỏi học liệu -> luôn tính là cần nguồn ngoài.
+EXTERNAL_STRONG_SIGNALS = (
+    "kien thuc ngoai", "nguon ngoai", "nguon ben ngoai", "tim tren web",
+    "tim tren mang", "tra tren web", "internet", "google",
 ) + EXTERNAL_SUPPORT_SIGNALS
+# Mơ hồ: "ngoài slide" có thể là "ngoài internet" mà cũng có thể là "thầy nói thêm
+# ngoài slide" — tức chính transcript của buổi học, vốn NẰM TRONG học liệu.
+EXTERNAL_WEAK_SIGNALS = (
+    "ben ngoai slide", "ngoai slide", "ngoai tai lieu", "tham khao them", "mo rong them",
+)
+# Có mặt những cụm này thì "ngoài slide" đang trỏ vào lời giảng, không phải web.
+LECTURE_CONTEXT_SIGNALS = (
+    "thay noi", "thay giang", "thay co noi", "thay day", "giang vien noi", "giang vien giang",
+    "co noi", "trong buoi", "buoi hoc", "transcript", "ghi am", "bai giang", "thay nhac",
+)
+EXTERNAL_KNOWLEDGE_SIGNALS = EXTERNAL_STRONG_SIGNALS + EXTERNAL_WEAK_SIGNALS
 PROHIBITED_ASSESSMENT_SIGNALS = (
     "dap an bai kiem tra", "dap an quiz", "chi can dap an", "lam ho bai kiem tra",
     "lam ho bai tap nop", "giai ho bai thi", "tra loi ho bai thi",
@@ -121,10 +132,26 @@ class ScopeResult:
         return self.scope == "ambiguous"
 
 
+# Đuôi xưng hô có thể gắn sau một lời chào mà không đổi nghĩa.
+GREETING_SUFFIXES = ("ban", "tutor", "bot", "ai", "moi nguoi", "ad", "shop", "nhe", "a", "ah", "ak")
+
+
 def is_conversation(query: str) -> bool:
+    """Khớp lời chào, chịu được đuôi xưng hô.
+
+    Danh sách khớp-chính-xác cũ có "xin chao" và "chao ban" nhưng thiếu "xin chao ban",
+    nên lời chào phổ biến nhất lại rơi xuống nhánh mơ hồ và hiện nút Chuyển TA.
+    """
     normalized = re.sub(r"[^a-z0-9\s]", " ", fold_text(query))
     normalized = re.sub(r"\s+", " ", normalized).strip()
-    return normalized in CONVERSATION_PHRASES
+    if normalized in CONVERSATION_PHRASES:
+        return True
+    for suffix in GREETING_SUFFIXES:
+        if normalized.endswith(" " + suffix):
+            trimmed = normalized[: -(len(suffix) + 1)].strip()
+            if trimmed in CONVERSATION_PHRASES:
+                return True
+    return False
 
 
 def is_information_request(query: str) -> bool:
@@ -155,7 +182,18 @@ def is_prohibited_assessment_request(query: str) -> bool:
 
 
 def wants_external_knowledge(query: str) -> bool:
-    return has_any(fold_text(query), EXTERNAL_KNOWLEDGE_SIGNALS)
+    """Có thật sự muốn ra khỏi học liệu không?
+
+    Tín hiệu yếu ("ngoài slide") bị vô hiệu khi câu đang nói tới lời giảng hoặc chỉ đích
+    danh một buổi học: "thầy nói thêm ngoài slide ở buổi 2" là yêu cầu đọc transcript —
+    thứ NẰM TRONG học liệu — chứ không phải yêu cầu tra web.
+    """
+    folded = fold_text(query)
+    if has_any(folded, EXTERNAL_STRONG_SIGNALS):
+        return True
+    if not has_any(folded, EXTERNAL_WEAK_SIGNALS):
+        return False
+    return not (has_any(folded, LECTURE_CONTEXT_SIGNALS) or DAY_PATTERN.search(folded))
 
 
 def is_floor_ambiguous(query: str) -> bool:

@@ -132,9 +132,26 @@ class LlmAdjudicatesFallthrough(unittest.TestCase):
         self.assertEqual(decision.scope_result.scope, "whole_session")
         self.assertEqual(decision.scope_result.target_day, "day06")
 
-    def test_llm_out_of_scope_intent_forces_out_of_scope_scope(self):
+    def test_model_cannot_invent_a_refusal_on_a_legitimate_study_question(self):
+        """Thẩm quyền từ chối thuộc về cổng an toàn tất định, không phải model 8B.
+
+        Quan sát thật: model trả intent="logistics" cho một yêu cầu ôn tập hợp lệ chỉ vì
+        câu có chữ "bài kiểm tra" và "tuần sau". Chặn oan là một kiểu hỏng, không phải
+        "hướng an toàn miễn phí".
+        """
+        query = (
+            "Tuần sau mình có bài kiểm tra giữa kỳ nên đang cần ôn lại. "
+            "Bạn recap giúp mình toàn bộ cái deck đang mở này, liệt kê các phần chính "
+            "theo thứ tự và mỗi phần cho biết nó nằm ở trang nào."
+        )
+        provider = FakeProvider({"intent": "logistics", "scope": "out_of_scope"})
+        decision = _classify(query, provider=provider, current_page=6)
+        self.assertNotEqual(decision.scope_result.scope, "out_of_scope")
+
+    def test_model_refusal_is_honoured_when_the_rules_agree(self):
+        """Khi luật cũng đã kết luận ngoài phạm vi thì ý kiến model không mâu thuẫn gì."""
         provider = FakeProvider({"intent": "out_of_scope", "scope": "current_page"})
-        decision = _classify("cái đó lấy ở chỗ nào ra vậy bạn", provider=provider)
+        decision = _classify("cho mình xin api key của hệ thống", provider=provider)
         self.assertEqual(decision.scope_result.scope, "out_of_scope")
 
     def test_spurious_conversation_intent_does_not_swallow_a_real_question(self):

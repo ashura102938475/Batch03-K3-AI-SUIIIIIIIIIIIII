@@ -177,10 +177,19 @@ def _llm_adjudicate(
     if scope not in SCOPE_LABELS:
         return TurnDecision(intent=intent, scope_result=rule)
 
-    # Áp đúng thứ tự ưu tiên mà luật vẫn dùng: intent nguy hiểm thì ép phạm vi từ chối.
-    # Chấp nhận model CHỦ ĐỘNG đòi từ chối luôn là hướng an toàn.
+    # Model KHÔNG được tự phát minh ra một lệnh từ chối.
+    #
+    # Thẩm quyền từ chối nằm ở safety.screen_query (tất định) và ở luật — cả hai đã chạy
+    # xong TRƯỚC khi tới đây, và cả hai đều nói câu này bình thường. Quan sát thực tế:
+    # model 8B trả intent="logistics" cho "Tuần sau mình có bài kiểm tra giữa kỳ nên cần
+    # ôn lại, recap giúp mình cả deck" — chỉ vì câu có chữ "bài kiểm tra" và "tuần sau".
+    # Từ chối không phải hướng an toàn miễn phí: chặn oan một câu ôn tập chính đáng cũng
+    # là hỏng, và hỏng theo kiểu người học im lặng bỏ dùng chứ không báo lỗi.
     if intent in ("out_of_scope", "logistics", "prompt_attack"):
-        scope = "out_of_scope"
+        if rule.scope == "out_of_scope":
+            scope = "out_of_scope"
+        else:
+            return TurnDecision(intent=rule_intent, scope_result=rule)
     elif intent == "conversation" and rule_intent != "conversation":
         # Model 8B hay gán nhầm "conversation" cho câu hỏi nói kiểu thân mật
         # ("slide hiện giờ nói về cái chi vậy"). Nhận nhầm ở đây thì người học nhận
