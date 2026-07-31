@@ -427,23 +427,37 @@ function App() {
   }, []);
 
   function changeDoc(nextDoc, initialPage = 1) {
+    if (nextDoc.id === docId) {
+      setPage(initialPage);
+      setSelectedText("");
+      setSelectionMenu(null);
+      return;
+    }
+
     setDocId(nextDoc.id);
     setPage(initialPage);
     setPdfPageCount(nextDoc.pageCount);
     setSelectedText("");
     setSelectionMenu(null);
-    setMessages((current) => [
-      ...current,
-      {
-        role: "assistant",
-        mode: "system",
-        status: "Đổi tài liệu",
-        confidence: 86,
-        scope: { label: "Tài liệu hiện tại", reason: `Đã mở ${nextDoc.filename}.` },
-        sources: [`${nextDoc.filename} - Trang ${initialPage}`],
-        text: `Đã chuyển sang ${nextDoc.title} (Trang ${initialPage}).`
+    setMessages((current) => {
+      const lastMsg = current[current.length - 1];
+      if (lastMsg && lastMsg.status === "Đổi tài liệu" && lastMsg.docId === nextDoc.id) {
+        return current;
       }
-    ]);
+      return [
+        ...current,
+        {
+          role: "assistant",
+          mode: "system",
+          status: "Đổi tài liệu",
+          docId: nextDoc.id,
+          confidence: 86,
+          scope: { label: "Tài liệu hiện tại", reason: `Đã mở ${nextDoc.filename}.` },
+          sources: [`${nextDoc.filename} - Trang ${initialPage}`],
+          text: `Đã chuyển sang ${nextDoc.title} (Trang ${initialPage}).`
+        }
+      ];
+    });
   }
 
   async function ask(rawQuery, forcedScopeStr = null) {
