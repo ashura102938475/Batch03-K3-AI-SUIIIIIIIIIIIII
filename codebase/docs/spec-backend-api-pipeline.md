@@ -5,7 +5,7 @@ created: '2026-07-30'
 status: 'done'
 review_loop_iteration: 0
 followup_review_recommended: false
-context: ['docs/spec.md']
+context: ['spec.md']
 warnings: []
 ---
 
@@ -15,7 +15,7 @@ warnings: []
 
 **Problem:** The VLearn Smart Contextual Companion requires a structured REST API pipeline exposing the 5 distinct stages (Detect Intent, Detect Scope, Retrieve Context, Generate Grounded Response, Fallback & TA Escalation) for frontend integration and automated evaluation.
 
-**Approach:** Implement FastAPI endpoints in `backend/api.py` serving each individual pipeline stage (`/api/v1/detect-intent`, `/api/v1/detect-scope`, `/api/v1/retrieve-context`, `/api/v1/generate-response`) plus the unified end-to-end `/api/v1/companion/chat` and `/api/v1/escalate-ta` endpoints.
+**Approach:** Implement FastAPI endpoints in `codebase/backend/api.py` serving each individual pipeline stage (`/api/v1/detect-intent`, `/api/v1/detect-scope`, `/api/v1/retrieve-context`, `/api/v1/generate-response`) plus the unified end-to-end `/api/v1/companion/chat` and `/api/v1/escalate-ta` endpoints.
 
 ## Boundaries & Constraints
 
@@ -45,18 +45,18 @@ warnings: []
 
 ## Code Map
 
-- `backend/api.py` -- FastAPI server application with OpenAPI schemas and endpoints for all 5 stages
-- `backend/companion/scope.py` -- Deterministic intent & scope classification engine
-- `backend/companion/retriever.py` -- Scope-aware PDF & transcript chunk retrieval
-- `backend/companion/answer.py` -- Grounded QA response generator with citation formatting
-- `backend/companion/trace.py` -- Turn trace recorder (`runs/turn_*.json`)
+- `codebase/backend/api.py` -- FastAPI server application with OpenAPI schemas and endpoints for all 5 stages
+- `codebase/backend/companion/scope.py` -- Deterministic intent & scope classification engine
+- `codebase/backend/companion/retriever.py` -- Scope-aware PDF & transcript chunk retrieval
+- `codebase/backend/companion/answer.py` -- Grounded QA response generator with citation formatting
+- `codebase/backend/companion/trace.py` -- Turn trace recorder (`runs/turn_*.json`)
 
 ## Tasks & Acceptance
 
 **Execution:**
-- `backend/api.py` -- Define Pydantic request/response schemas and endpoints (`/api/v1/detect-intent`, `/api/v1/detect-scope`, `/api/v1/retrieve-context`, `/api/v1/generate-response`, `/api/v1/companion/chat`, `/api/v1/escalate-ta`).
-- `backend/companion/retriever.py` -- Parse real PDF slide pages and clean transcript files into 751 corpus chunks.
-- `backend/providers/nvidia_provider.py` -- Integrate NVIDIA Provider as default LLM provider.
+- `codebase/backend/api.py` -- Define Pydantic request/response schemas and endpoints (`/api/v1/detect-intent`, `/api/v1/detect-scope`, `/api/v1/retrieve-context`, `/api/v1/generate-response`, `/api/v1/companion/chat`, `/api/v1/escalate-ta`).
+- `codebase/backend/companion/retriever.py` -- Parse real PDF slide pages and clean transcript files into 751 corpus chunks.
+- `codebase/backend/providers/nvidia_provider.py` -- Integrate NVIDIA Provider as default LLM provider.
 
 **Acceptance Criteria:**
 - Given a valid query, when calling `POST /api/v1/companion/chat`, then backend returns `200 OK` with grounded answer, active model, sources list, and trace log filename.

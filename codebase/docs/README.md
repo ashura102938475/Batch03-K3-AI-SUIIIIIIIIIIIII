@@ -4,11 +4,11 @@ Thư mục này chứa toàn bộ tài liệu làm việc và nghiên cứu củ
 
 ## Deliverable chính
 
-- [AI SPEC (`spec.md`)](../spec.md)
-  - Bản AI SPEC chính thức hoàn chỉnh 9 mục theo chuẩn `03-template-ai-spec.md`
+- [AI SPEC (`spec.md`)](../../spec.md)
+  - Bản AI SPEC chính thức hoàn chỉnh 9 mục theo chuẩn `codebase/reference/03-template-ai-spec.md`
   - Đã chốt cho deadline 23:59 N1
 
-## Tài liệu trong thư mục docs/
+## Tài liệu trong thư mục codebase/docs/
 
 - [CP1 Canvas & Slide Script](cp1-canvas-and-slide-script.md)
   - Canvas 7 dòng

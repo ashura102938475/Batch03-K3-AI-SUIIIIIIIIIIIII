@@ -40,7 +40,7 @@ Job này vẫn tồn tại dù không có AI: học viên vẫn phải tự đ�
 
 Nguồn data:
 
-- `data/vlearn-pack/chatlog/chat_history_anonymized_for_hackathon.csv`
+- `codebase/data/vlearn-pack/chatlog/chat_history_anonymized_for_hackathon.csv`
 - 1,261 lượt hỏi-đáp student-tutor
 - 369 users
 - 585 conversations

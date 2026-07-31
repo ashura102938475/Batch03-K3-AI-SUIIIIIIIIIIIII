@@ -9,6 +9,7 @@ from scripts.eval_golden_set import citations_match, evaluate_content
 
 
 ROOT = Path(__file__).resolve().parents[1]
+EVAL_DIR = ROOT.parent.parent / "eval"
 
 
 class EvaluatorScoringTests(unittest.TestCase):
@@ -154,8 +155,8 @@ class EvaluatorScoringTests(unittest.TestCase):
 
 class GoldenSetVersionTests(unittest.TestCase):
     def test_v2_is_archived_and_v3_has_required_risk_coverage(self) -> None:
-        v2 = json.loads((ROOT / "eval" / "golden_set_v2.json").read_text(encoding="utf-8"))
-        v3 = json.loads((ROOT / "eval" / "golden_set_v3.json").read_text(encoding="utf-8"))
+        v2 = json.loads((EVAL_DIR / "golden_set_v2.json").read_text(encoding="utf-8"))
+        v3 = json.loads((EVAL_DIR / "golden_set_v3.json").read_text(encoding="utf-8"))
 
         self.assertEqual("2.0", v2["version"])
         self.assertEqual("3.0", v3["version"])

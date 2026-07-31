@@ -129,7 +129,7 @@ function externalMockLinks(query, doc) {
       href: `https://scholar.google.com/scholar?q=${searchQuery}`
     },
     {
-      label: `📖 Tài liệu gốc: ${docFile} (${doc?.sourcePath || "data/vlearn-pack/slides"})`,
+      label: `📖 Tài liệu gốc: ${docFile} (${doc?.sourcePath || "codebase/data/vlearn-pack/slides"})`,
       href: doc?.pdfUrl || "#"
     }
   ];

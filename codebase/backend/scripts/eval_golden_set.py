@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = ROOT.parent.parent
+EVAL_DIR = REPO_ROOT / "eval"
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -379,7 +381,7 @@ def run_golden_set_eval(
     provider_name: str | None = None,
     write_outputs: bool = True,
 ) -> dict[str, Any]:
-    path = Path(dataset_path) if dataset_path else ROOT / "eval" / f"golden_set_{version}.json"
+    path = Path(dataset_path) if dataset_path else EVAL_DIR / f"golden_set_{version}.json"
     dataset_bytes = path.read_bytes()
     dataset = json.loads(dataset_bytes.decode("utf-8"))
     cases = dataset["cases"]
@@ -636,8 +638,8 @@ def run_golden_set_eval(
 
     if write_outputs:
         version_slug = dataset["version"].split(".")[0]
-        json_out = ROOT / "eval" / f"eval_golden_set_v{version_slug}_results.json"
-        report_out = ROOT / "eval" / f"EVAL_REPORT_V{version_slug}.md"
+        json_out = EVAL_DIR / f"eval_golden_set_v{version_slug}_results.json"
+        report_out = EVAL_DIR / f"EVAL_REPORT_V{version_slug}.md"
         json_out.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
         report_out.write_text(generate_markdown_report(summary), encoding="utf-8")
 

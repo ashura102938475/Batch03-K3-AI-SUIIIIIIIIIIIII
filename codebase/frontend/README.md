@@ -21,7 +21,7 @@ Nếu backend trả về `status: online`, frontend có thể gọi API.
 Từ thư mục gốc repo:
 
 ```powershell
-cd frontend
+cd codebase\frontend
 npm ci
 ```
 
@@ -47,7 +47,7 @@ Nếu cổng `5173` bận, Vite có thể chọn cổng tiếp theo. Xem URL ch�
 npm run build
 ```
 
-Kết quả build nằm trong `frontend/dist/`.
+Kết quả build nằm trong `codebase/frontend/dist/`.
 
 Xem thử bản build:
 
@@ -58,7 +58,7 @@ npm run preview
 ## Cấu trúc chính
 
 ```text
-frontend/
+codebase/frontend/
   index.html
   package.json
   vite.config.js

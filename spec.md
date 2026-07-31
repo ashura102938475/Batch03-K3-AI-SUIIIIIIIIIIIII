@@ -17,7 +17,7 @@ Loại: [x] Tối ưu tính năng có sẵn  [ ] Tính năng mới
 - **Problem statement:**  
   > Học viên đang hỏi/tóm tắt nội dung học liệu trên VLearn nhưng Tutor hiện tại thường chỉ hiểu đoạn bôi đen hoặc trang đang mở, không nhận ra phạm vi rộng hơn (tài liệu hoặc buổi học). Điều này khiến câu trả lời thiếu context, citation rỗng (46.2%) hoặc báo "không tìm thấy / không truy cập được" (55.8% lượt summary broad-scope); học viên phải tự lật lại tài liệu, hỏi lặp lại nhiều lần hoặc chuyển sang công cụ khác.
 
-- **Evidence (chuẩn B — Data Mining & Turn IDs từ `data/vlearn-pack/chatlog/`):**  
+- **Evidence (chuẩn B — Data Mining & Turn IDs từ `codebase/data/vlearn-pack/chatlog/`):**
   - **Quy mô data:** `1,261` lượt hỏi-đáp student-tutor, `369` users, `585` conversations.
   - **Số liệu mining chính:**
     - `156/1,261` lượt hỏi (`12.4%`) có nhu cầu summary / tổng hợp / ý chính / keyword / note (đến từ 111 users).
@@ -102,7 +102,7 @@ Loại: [x] Tối ưu tính năng có sẵn  [ ] Tính năng mới
 ### B. Constraints (Ràng Buộc Thiết Kế & Kiến Trúc)
 
 1. **NVIDIA NIM API & Model Selection:** Dùng `nvidia/nemotron-3-nano-30b-a3b` để sinh câu trả lời grounded; fast classifier tùy chọn dùng `google/gemma-3-1b-it`. Cả hai đi qua interface chuẩn `complete()` và có cấu hình riêng bằng biến môi trường.
-2. **Data Confidentiality & Privacy:** Không commit dữ liệu thô của data pack (`data/vlearn-pack/`) vào git repo; chỉ trích dẫn ngắn qua `turn_id` / mã `[Txx-NNN]`.
+2. **Data Confidentiality & Privacy:** Data pack nằm tại `codebase/data/vlearn-pack/` và chỉ được dùng trong phạm vi hackathon; khi xuất artifact ra ngoài repo, chỉ trích dẫn ngắn qua `turn_id` / mã `[Txx-NNN]`.
 3. **Graceful Fallback & Offline Mocking:** Khi không có API key hoặc provider bị nghẽn/hết quota, hệ thống tự chuyển sang chế độ Mock với badge `🟡 MOCK` mà không làm crash ứng dụng.
 4. **Provider Abstraction:** Hỗ trợ đa dạng provider (NVIDIA NIM/API Catalog, Gemini, OpenAI, OpenRouter) thông qua interface chuẩn `complete()`.
 
@@ -206,14 +206,14 @@ Loại: [x] Tối ưu tính năng có sẵn  [ ] Tính năng mới
 
 ## §8. Phân Công & Kế Hoạch
 
-- **Phân công có tên:**  
-  - **Spec & Architecture:** Member B (`[Tên B]`) — Chốt spec.md, flow thiết kế & 4 lớp chỗ khó.  
-  - **Data Evidence & Mining:** Member A (`[Tên A]`) — Phân tích chatlog, đếm số liệu & trích lọc Turn IDs.  
-  - **Prompt & Golden Set Eval:** Member C (`[Tên C]`) — Quản lý bộ test theo version, human-label claim/source và chạy v3 robustness 31 cases.
-  - **Code & Prototype:** Member D (`[Tên D]`) — Build UI VLearn Tutor sidebar & tích hợp API call RAG.  
-  - **Validation & Demo:** Member E (`[Tên E]`) — Khảo sát willing users, ghi log feedback CP5 & chuẩn bị slide demo.
+- **Phân công có tên (theo lịch sử commit, cần bổ sung mã HV/họ tên trong README):**
+  - **Backend API, provider/model, tích hợp TA:** `ashura102938475`.
+  - **Data Evidence, Golden Set Eval & Grounding:** `Hieunc2910`.
+  - **Frontend, PDF Reader & Citation UX:** `codecuatai`.
+  - **Prototype ban đầu, Setup & Docs:** Bùi Gia Uy (`BuiGiaUy`).
+  - **Validation & Demo:** Chưa có owner được xác nhận; nhóm phải chốt trước khi user test.
 
-- **Willing users (≥3 tên học viên K3):** `[Học viên K3 1]`, `[Học viên K3 2]`, `[Học viên K3 3]`.
+- **Willing users (≥3 học viên K3):** Chưa xác nhận. Chỉ điền sau khi người dùng đồng ý tham gia test.
 
 - **Kế hoạch vòng Validation CP5 (3 câu hỏi phỏng vấn):**  
   1. *"Khi xem lại slide trên VLearn, câu trả lời tóm tắt kèm trỏ nguồn [Slide X] có giúp bạn ôn bài nhanh hơn không?"*  

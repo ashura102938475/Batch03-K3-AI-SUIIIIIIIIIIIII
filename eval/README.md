@@ -14,7 +14,7 @@ test outcomes.
 
 ## Run
 
-From `backend/`:
+From `codebase/backend/`:
 
 ```powershell
 .\.venv\Scripts\python.exe eval_golden_set.py --version v3 --transport api

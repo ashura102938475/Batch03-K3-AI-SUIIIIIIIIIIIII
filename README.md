@@ -1,151 +1,98 @@
 # VLearn Smart Contextual Companion
 
-Prototype trợ lý học tập theo ngữ cảnh cho VLearn. Ứng dụng cho phép học viên hỏi về slide, tài liệu hoặc buổi học hiện tại; backend nhận diện intent/scope, truy xuất ngữ cảnh liên quan, rồi trả lời có citation hoặc chuyển hướng TA khi thiếu chắc chắn.
+Trợ lý học tập theo ngữ cảnh cho VLearn. Sản phẩm nhận diện phạm vi câu hỏi
+(trang hiện tại, tài liệu, buổi học hoặc nguồn ngoài), truy xuất học liệu liên
+quan, trả lời kèm citation và đề xuất chuyển TA khi thiếu căn cứ hoặc vượt phạm vi.
 
-Repo này có 2 phần chính:
+## Thành viên và phân công
 
-- `backend/`: FastAPI API, Streamlit prototype, pipeline AI/retrieval/eval.
-- `frontend/`: giao diện React chạy bằng Vite, gọi API tại `http://localhost:8000`.
+Bảng dưới đây tổng hợp theo lịch sử commit. Nhóm cần điền mã học viên và xác nhận
+họ tên trước khi nộp.
 
-## Yêu cầu cài đặt
+| Mã HV | Họ tên | GitHub | Phần phụ trách |
+|---|---|---|---|
+| Cần bổ sung | Cần xác nhận | `ashura102938475` | Backend API, provider/model, tích hợp TA |
+| Cần bổ sung | Cần xác nhận | `Hieunc2910` | Phân tích dữ liệu, golden set/evaluator, grounding |
+| Cần bổ sung | Cần xác nhận | `codecuatai` | Frontend, PDF reader, chat/citation UX |
+| Cần bổ sung | Bùi Gia Uy | `BuiGiaUy` | Prototype ban đầu, setup và tài liệu |
 
-Cài sẵn:
-
-- Python 3.10+
-- Node.js 20+
-- npm
-
-Các lệnh bên dưới giả định bạn đang dùng PowerShell tại thư mục gốc của repo.
-
-## Cấu trúc thư mục
+## Cấu trúc bài nộp
 
 ```text
-backend/
-  api.py                 # FastAPI backend cho frontend
-  app.py                 # Streamlit prototype
-  companion/             # intent, scope, retrieval, answer, trace
-  providers/             # wrapper các LLM provider
-  corpus/                # corpus fallback khi sample data không khả dụng
-  eval/                  # golden set và kết quả đánh giá
-frontend/
-  src/App.jsx            # UI chính
-  src/data/slides.js     # metadata tài liệu và demo prompts cho UI
-data/                    # data course được cấp, không commit ra ngoài
-docs/, spec.md           # tài liệu sản phẩm và AI spec
+repo/
+├── README.md          # Thành viên, phân công, hướng dẫn chạy
+├── spec.md            # AI Spec theo template của khóa
+├── demo-slides.pdf    # Bản nháp slide demo 6 trang
+├── codebase/          # Prototype và tài liệu kỹ thuật
+├── eval/              # Golden set và kết quả các lượt chạy
+├── validation/        # Feedback log từ user test
+└── reflection/        # Mỗi thành viên một file reflection
 ```
 
-## Setup backend
+Chi tiết phần nào chạy thật và phần nào mock nằm tại
+[`codebase/README.md`](codebase/README.md).
 
-Tạo virtual environment và cài dependency:
+## AI quyết định gì?
+
+**AI quyết định câu hỏi có thể trả lời từ học liệu chính thức, cần bổ sung nguồn
+ngoài, cần hỏi lại hay phải chuyển TA; câu trả lời grounded được sinh bằng
+`nvidia/nemotron-3-nano-30b-a3b`, với `google/gemma-3-1b-it` là classifier tùy
+chọn và luật deterministic làm fallback.**
+
+## Chạy prototype
+
+Yêu cầu: Python 3.10+, Node.js 20+ và npm. Chạy các lệnh từ root repo.
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
-Copy-Item backend\.env.example backend\.env
+python -m venv codebase\backend\.venv
+codebase\backend\.venv\Scripts\python.exe -m pip install -r codebase\backend\requirements.txt
+Copy-Item codebase\backend\.env.example codebase\backend\.env
 ```
 
-Nếu chưa có API key, backend vẫn chạy ở mock mode.
-
-Muốn dùng LLM thật, mở `backend/.env` và điền một provider:
-
-```env
-DEFAULT_PROVIDER=nvidia
-NVIDIA_API_KEY=your_key_here
-```
-
-Các provider hỗ trợ: `nvidia`, `gemini`, `openai`, `openrouter`, `anthropic`.
-
-## Chạy backend API
+Điền ít nhất `NVIDIA_API_KEY` vào `codebase/backend/.env`, rồi chạy backend:
 
 ```powershell
-cd backend
-..\.venv\Scripts\python.exe -m uvicorn api:app --host 127.0.0.1 --port 8000
+cd codebase\backend
+.\.venv\Scripts\python.exe -m uvicorn api:app --host 127.0.0.1 --port 8000
 ```
 
-Kiểm tra backend:
+Trong terminal khác:
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:8000/health
-```
-
-Kỳ vọng nhận được `status: online`. Nếu `active_provider` là `MOCK`, nghĩa là chưa có API key hợp lệ.
-
-## Chạy frontend
-
-Mở terminal mới tại thư mục gốc:
-
-```powershell
-cd frontend
+cd codebase\frontend
 npm ci
 npm run dev
 ```
 
-Mở URL Vite hiển thị trong terminal, thường là:
+Mở `http://127.0.0.1:5174`. Kiểm tra backend tại
+`http://127.0.0.1:8000/health`.
 
-```text
-http://127.0.0.1:5173
-```
-
-Frontend đang hard-code API base là `http://localhost:8000`, nên cần chạy backend trước.
-
-## Chạy Streamlit prototype
-
-Nếu muốn xem prototype cũ:
+## Kiểm thử
 
 ```powershell
-cd backend
-..\.venv\Scripts\streamlit.exe run app.py
+cd codebase\backend
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe eval_golden_set.py --version v3 --transport api
 ```
 
-Mở:
+Golden set v3 có **31 câu**, trong đó **10 câu bắt nguồn từ quan sát thực tế**.
+Lượt chạy được lưu gần nhất đạt **16/31 (51,61%)** và còn **6 lỗi critical**.
+Chuẩn cam kết là tối thiểu **75% tổng thể** và **không có lỗi critical** về bịa
+claim/citation, trả lời hộ bài đánh giá hoặc bịa thông tin logistics. Xem đầy đủ
+tại [`eval/EVAL_REPORT_V3.md`](eval/EVAL_REPORT_V3.md).
 
-```text
-http://localhost:8501
-```
+## Trạng thái bài nộp
 
-## Chạy đánh giá backend
+- `spec.md`: đã có AI Spec và bằng chứng data mining.
+- `demo-slides.pdf`: bản nháp 6 trang; slide validation còn chờ dữ liệu thật.
+- `eval/`: đã có golden set v2/v3, kết quả và manual review.
+- `validation/`: biểu mẫu đã sẵn sàng, hiện chưa có đủ 5 user test.
+- `reflection/`: đã tạo file theo contributor; mỗi thành viên phải tự hoàn thiện.
+- Trước khi nộp cần bổ sung mã HV, xác nhận họ tên, ít nhất 5 feedback thật và
+  reflection cá nhân.
 
-Các bộ test được giữ theo version trong `backend/eval/`:
+## Bảo mật
 
-- `v2`: regression set đã đóng băng để kiểm tra code cũ không bị hỏng.
-- `v3`: robustness set chạy qua FastAPI, có paraphrase, typo, mixed-language,
-  claim-level citation và critical safety cases.
-
-```powershell
-cd backend
-..\.venv\Scripts\python.exe eval_golden_set.py --version v3 --transport api
-```
-
-Xem quy tắc version và các lệnh chạy khác tại `backend/eval/README.md`. Không sửa
-case đã phát hành chỉ để làm điểm tăng; thay đổi hành vi kỳ vọng phải tạo version kế tiếp.
-
-## Lưu ý dữ liệu và bảo mật
-
-- Không commit API key trong `backend/.env`.
-- Không chia sẻ hoặc commit raw data trong `data/`.
-- Trace sinh ra trong `backend/runs/*.json`; chỉ force-add file mẫu khi cần nộp bằng chứng.
-- `VLEARN_TRANSCRIPT_PATH` trong `.env` có thể dùng để trỏ tới transcript thật nếu đường dẫn mặc định không đúng.
-
-## Lỗi thường gặp
-
-**Port 8000 đã được dùng**
-
-```powershell
-netstat -ano | Select-String ':8000'
-Stop-Process -Id <PID>
-```
-
-**pip đọc `requirements.txt` lỗi encoding trên Windows**
-
-```powershell
-$env:PYTHONUTF8='1'
-.\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
-```
-
-**Frontend không gọi được API**
-
-Kiểm tra backend còn chạy không:
-
-```powershell
-Invoke-RestMethod http://127.0.0.1:8000/health
-```
+Không commit `codebase/backend/.env` hoặc API key. Data pack đã ẩn danh chỉ được
+dùng trong phạm vi hackathon; khi trích dẫn chatlog, dùng `turn_id` thay vì cố
+suy ngược danh tính.

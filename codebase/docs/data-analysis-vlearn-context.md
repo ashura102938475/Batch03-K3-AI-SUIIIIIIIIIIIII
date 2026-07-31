@@ -22,7 +22,7 @@ Theo CP1, nhóm cần trả lời 5 câu hỏi khám phá. Data thực hỗ tr�
 
 File:
 
-`data/vlearn-pack/chatlog/chat_history_anonymized_for_hackathon.csv`
+`codebase/data/vlearn-pack/chatlog/chat_history_anonymized_for_hackathon.csv`
 
 Quy mô:
 
@@ -300,7 +300,7 @@ Pseudo-code:
 ```python
 import pandas as pd
 
-df = pd.read_csv("data/vlearn-pack/chatlog/chat_history_anonymized_for_hackathon.csv")
+df = pd.read_csv("codebase/data/vlearn-pack/chatlog/chat_history_anonymized_for_hackathon.csv")
 student = df[df.role == "student"]
 tutor = df[df.role == "tutor"]
 pairs = student.merge(tutor, on="turn_id", suffixes=("_student", "_tutor"))
@@ -314,4 +314,3 @@ pairs = student.merge(tutor, on="turn_id", suffixes=("_student", "_tutor"))
 ```
 
 Khi nộp spec, mô tả phương pháp đếm bằng lời là đủ; không cần nộp toàn bộ script nếu không build eval tự động.
-
