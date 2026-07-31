@@ -10,6 +10,7 @@ Evidence từ chatlog: 156/1.261 lượt có nhu cầu summary, 87/156 (55,8%) b
 """
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 
@@ -20,7 +21,17 @@ SUMMARY_SIGNALS = (
     "tom tat", "tom gon", "tong hop", "summary", "y chinh", "noi dung chinh",
     "noi dung quan trong", "keyword", "tu khoa", "can hoc", "on lai", "ghi chu", "note",
 )
-EXPLAIN_SIGNALS = ("giai thich", "la gi", "nghia la", "tai sao", "vi sao", "vi du", "khac nhau", "so sanh")
+DEFINITION_SIGNALS = (" la gi", "nghia la", "khai niem", "dinh nghia", "hieu la gi")
+COMPARE_SIGNALS = ("so sanh", "khac nhau", "giong nhau", "phan biet", " vs ", " versus ")
+QUIZ_SIGNALS = (
+    "tao cau hoi", "dat cau hoi", "cau hoi on tap", "quiz", "trac nghiem",
+    "kiem tra nhanh", "on tap", "lam quiz",
+)
+MISCONCEPTION_SIGNALS = (
+    "diem de nham", "de nham", "hay nham", "sai lam", "hieu lam",
+    "can tranh", "nham lan", "phan de sai",
+)
+EXPLAIN_SIGNALS = ("giai thich", "tai sao", "vi sao", "vi du", "noi ro", "de hieu")
 LOGISTICS_SIGNALS = (
     "deadline", "han nop", "nop bai", "nop o dau", "link zoom", "lich hoc", "diem so",
     "tai file", "tai tai lieu", "download", "tai ve", "link repo", "dang ky",
@@ -29,6 +40,10 @@ OUT_OF_SCOPE_SIGNALS = ("api key", "apikey", "password", "mat khau", "admin", "t
 PROMPT_ATTACK_SIGNALS = (
     "bo qua huong dan", "bo qua moi", "ignore previous", "ignore all", "system prompt",
     "prompt he thong", "ma hoa base64", "base64 toan bo", "dong vai", "quen het luat",
+)
+EXTERNAL_SETUP_SIGNALS = (
+    "cai dat thu vien", "cach cai dat", "install", "setup", "macos", "m1", "pytorch",
+    "tensorflow", "cuda", "driver", "terminal",
 )
 
 # ----------------------------------------------------------------- scope
@@ -42,6 +57,7 @@ SELECTION_SIGNALS = ("doan nay", "cho nay", "phan nay", "boi den", "doan tren", 
 # Nói "bài này" mà không kèm tín hiệu phạm vi nào -> thật sự mơ hồ, phải hỏi lại.
 # Đây là ca có thật trong chatlog: T1164 "tóm tắt cho t tất cả từ trang 1 đến trang 44 bài này học về gì".
 AMBIGUOUS_SIGNALS = ("bai nay", "cai nay", "phan tren", "noi dung nay")
+VAGUE_ONLY_SIGNALS = ("hay khong", "co khong", "dung khong", "phai khong", "duoc khong", "khong")
 
 DAY_PATTERN = re.compile(r"(?:buoi|day|ngay)\s*0?(\d{1,2})")
 PAGE_PATTERN = re.compile(r"(?:trang|slide|page)\s*0?(\d{1,3})")
@@ -55,6 +71,18 @@ SCOPE_LABELS = {
     "ambiguous": "Chưa rõ phạm vi",
     "out_of_scope": "Ngoài phạm vi học liệu",
 }
+
+
+def _is_vague_followup(query: str) -> bool:
+    folded = fold_text(query).strip(" ?!.")
+    words = re.findall(r"[a-z0-9]+", folded)
+    if not words:
+        return True
+    if folded in VAGUE_ONLY_SIGNALS:
+        return True
+    if len(words) <= 3 and has_any(folded, VAGUE_ONLY_SIGNALS):
+        return True
+    return False
 
 
 @dataclass
@@ -76,7 +104,7 @@ class ScopeResult:
 
 
 def detect_intent(query: str) -> str:
-    """prompt_attack > out_of_scope > logistics > summary > explain."""
+    """Classify the learner task with deterministic priority rules."""
     folded = fold_text(query)
     if has_any(folded, PROMPT_ATTACK_SIGNALS):
         return "prompt_attack"
@@ -84,6 +112,16 @@ def detect_intent(query: str) -> str:
         return "out_of_scope"
     if has_any(folded, LOGISTICS_SIGNALS):
         return "logistics"
+    if has_any(folded, QUIZ_SIGNALS):
+        return "quiz"
+    if has_any(folded, MISCONCEPTION_SIGNALS):
+        return "misconception"
+    if has_any(folded, COMPARE_SIGNALS) or re.search(r"\b\w+\s+khac\s+(?:gi|nhau)\s+(?:voi\s+)?\w+", folded):
+        return "compare"
+    if has_any(folded, DEFINITION_SIGNALS):
+        return "definition"
+    if "lien quan" in folded:
+        return "explain"
     if has_any(folded, SUMMARY_SIGNALS):
         return "summary"
     if has_any(folded, EXPLAIN_SIGNALS):
@@ -101,6 +139,15 @@ def detect_scope(query: str, *, has_selection: bool, current_day: str, current_p
     folded = fold_text(query)
     intent = detect_intent(query)
 
+    if _is_vague_followup(query):
+        return ScopeResult(
+            scope="ambiguous",
+            confidence="tháº¥p",
+            reason="CĂ¢u há»i quĂ¡ ngáº¯n/chÆ°a cĂ³ chá»§ Ä‘á», nĂªn khĂ´ng thá»ƒ xĂ¡c Ä‘á»‹nh nguá»“n cáº§n Ä‘á»c.",
+            target_day=current_day,
+            target_page=current_page,
+        )
+
     if intent in ("out_of_scope", "logistics", "prompt_attack"):
         return ScopeResult(
             scope="out_of_scope",
@@ -110,6 +157,13 @@ def detect_scope(query: str, *, has_selection: bool, current_day: str, current_p
                 "logistics": "Câu hỏi về logistics khoá học, không nằm trong học liệu.",
                 "prompt_attack": "Câu hỏi có dấu hiệu can thiệp hướng dẫn hệ thống.",
             }[intent],
+        )
+
+    if has_any(folded, EXTERNAL_SETUP_SIGNALS) and not has_any(folded, PAGE_SIGNALS + DOCUMENT_SIGNALS + SESSION_SIGNALS):
+        return ScopeResult(
+            scope="out_of_scope",
+            confidence="cao",
+            reason="Câu hỏi hỏi cách cài đặt/môi trường bên ngoài, không gắn với học liệu đang mở.",
         )
 
     # ① Cả buổi — "buổi 5", "day 6", "cả buổi này"
@@ -147,26 +201,36 @@ def detect_scope(query: str, *, has_selection: bool, current_day: str, current_p
             target_day=current_day,
         )
 
-    # ③ Đoạn bôi đen — user chủ động chọn thì ưu tiên hơn trang
-    if has_selection and (has_any(folded, SELECTION_SIGNALS) or not has_any(folded, PAGE_SIGNALS)):
-        return ScopeResult(
-            scope="selected_text",
-            confidence="cao",
-            reason="Bạn đang bôi đen một đoạn nên chỉ trả lời trong phạm vi đoạn đó.",
-            target_day=current_day,
-            target_page=current_page,
-        )
-
-    # ④ Một trang cụ thể — "trang này", "trang 37"
     page_match = PAGE_PATTERN.search(folded)
+    explicit_page = int(page_match.group(1)) if page_match else None
+
+    # ③ Một trang cụ thể — "trang này", "trang 37". Trang được nói rõ thắng selection cũ,
+    # trừ khi câu hỏi thật sự nhắc tới đoạn bôi đen trên trang đó.
     if page_match:
-        page = int(page_match.group(1))
+        if has_selection and has_any(folded, SELECTION_SIGNALS):
+            return ScopeResult(
+                scope="selected_text",
+                confidence="cao",
+                reason=f"Câu hỏi nhắc tới đoạn bôi đen ở trang {explicit_page}.",
+                target_day=current_day,
+                target_page=explicit_page,
+            )
         return ScopeResult(
             scope="current_page",
             confidence="cao",
-            reason=f"Câu hỏi chỉ đích danh trang {page}.",
+            reason=f"Câu hỏi chỉ đích danh trang {explicit_page}.",
             target_day=current_day,
-            target_page=page,
+            target_page=explicit_page,
+        )
+
+    # ④ Đoạn bôi đen — chỉ dùng khi câu hỏi thật sự nhắc tới đoạn/phần/chỗ đang chọn.
+    if has_selection and has_any(folded, SELECTION_SIGNALS):
+        return ScopeResult(
+            scope="selected_text",
+            confidence="cao",
+            reason="Bạn đang bôi đen một đoạn và câu hỏi nhắc tới đoạn đó.",
+            target_day=current_day,
+            target_page=current_page,
         )
     if has_any(folded, PAGE_SIGNALS):
         return ScopeResult(
@@ -175,6 +239,14 @@ def detect_scope(query: str, *, has_selection: bool, current_day: str, current_p
             reason=f"Câu hỏi nói 'trang này' nên hiểu là trang {current_page} bạn đang mở.",
             target_day=current_day,
             target_page=current_page,
+        )
+
+    if intent in ("explain", "definition", "compare"):
+        return ScopeResult(
+            scope="current_document",
+            confidence="trung bình",
+            reason="Câu hỏi hỏi khái niệm chung nhưng không chỉ rõ trang, nên tìm trong tài liệu hiện tại trước.",
+            target_day=current_day,
         )
 
     # ⑤ Mơ hồ — hỏi lại thay vì đoán liều (HAX G10)

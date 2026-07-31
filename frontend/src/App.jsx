@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import {
@@ -110,6 +112,30 @@ function selectedTextWithoutWatermark(selection, textLayer) {
   }
 
   return [...new Set(pieces)].join(" ").replace(/\s+/g, " ").trim();
+}
+
+function splitBatchQueries(text) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length < 2) return [text.trim()];
+  if (lines.some((line) => line.length > 180)) return [text.trim()];
+  return lines;
+}
+
+function shouldUseSelectionForQuery(query, forcedScopeStr, selectedText) {
+  if (!selectedText.trim()) return false;
+  if (forcedScopeStr === "selected_text") return true;
+  const text = normalize(query);
+  if (/^(hay khong|co khong|dung khong|phai khong|duoc khong|khong)\??$/.test(text)) return false;
+  if (!/(trang|slide|tai lieu|file|ca bai|toan bo|ca buoi|buoi|day)\b/.test(text)) return true;
+  return /\b(doan boi den|doan nay|phan nay|cho nay|doan tren|noi dung nay)\b/.test(text);
+}
+
+function inferredSelectionScopeForQuery(query, forcedScopeStr, selectedText) {
+  if (!shouldUseSelectionForQuery(query, forcedScopeStr, selectedText)) return forcedScopeStr;
+  return forcedScopeStr || "selected_text";
 }
 
 function externalMockLinks(query, doc) {
@@ -317,6 +343,7 @@ function App() {
   const [page, setPage] = useState(2);
   const [selectedText, setSelectedText] = useState("");
   const [selectionMenu, setSelectionMenu] = useState(null);
+  const [selectionHighlight, setSelectionHighlight] = useState(null);
   const [selectionNotes, setSelectionNotes] = useState([]);
   const [pdfPageCount, setPdfPageCount] = useState(documents[0].pageCount);
   const [pdfPageWidth, setPdfPageWidth] = useState(0);
@@ -327,6 +354,9 @@ function App() {
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const wheelNavRef = useRef(0);
   const pdfFrameRef = useRef(null);
+  const chatLogRef = useRef(null);
+  const chatEndRef = useRef(null);
+  const questionInputRef = useRef(null);
   const [messages, setMessages] = useState([
     {
       role: "assistant",
@@ -347,6 +377,17 @@ function App() {
     [selectionNotes, doc.id, slide.page]
   );
   const progress = Math.round((messages.filter((item) => item.role === "user").length / 15) * 100);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages, isLoading]);
+
+  useEffect(() => {
+    const input = questionInputRef.current;
+    if (!input) return;
+    input.style.height = "auto";
+    input.style.height = `${Math.min(input.scrollHeight, 132)}px`;
+  }, [question]);
 
   useEffect(() => {
     function closeSelectionMenu(event) {
@@ -415,10 +456,39 @@ function App() {
     if (!cleanQuery || isLoading) return;
 
     setIsChatCollapsed(false);
+    const batchQueries = forcedScopeStr ? [cleanQuery] : splitBatchQueries(cleanQuery);
+    if (batchQueries.length > 1) {
+      setQuestion("");
+      for (const queryItem of batchQueries) {
+        await askSingle(queryItem, null);
+      }
+      return;
+    }
+
+    await askSingle(cleanQuery, forcedScopeStr);
+  }
+
+  async function askSingle(cleanQuery, forcedScopeStr = null) {
+    const loadingId = `loading-${Date.now()}`;
+    const effectiveSelection = shouldUseSelectionForQuery(cleanQuery, forcedScopeStr, selectedText) ? selectedText : "";
+    const effectiveForcedScope = inferredSelectionScopeForQuery(cleanQuery, forcedScopeStr, selectedText);
+
     setQuestion("");
     setIsLoading(true);
 
-    setMessages((current) => [...current, { role: "user", text: cleanQuery }]);
+    setMessages((current) => [
+      ...current,
+      { role: "user", text: cleanQuery, selection: effectiveSelection },
+      {
+        id: loadingId,
+        role: "assistant",
+        mode: "loading",
+        status: "Đang xử lý",
+        scope: { label: "Đang đọc nguồn" },
+        sources: [],
+        text: "VLearn Tutor đang đọc slide và kiểm tra trích dẫn..."
+      }
+    ]);
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/v1/companion/chat`, {
@@ -428,8 +498,8 @@ function App() {
           query: cleanQuery,
           current_day: doc.dayId || "day01",
           current_page: page,
-          selection: selectedText,
-          forced_scope: forcedScopeStr
+          selection: effectiveSelection,
+          forced_scope: effectiveForcedScope
         })
       });
 
@@ -456,13 +526,13 @@ function App() {
         ta_handoff_suggested: data.ta_handoff_suggested
       };
 
-      setMessages((current) => [...current, assistantMessage]);
+      setMessages((current) => current.map((message) => (message.id === loadingId ? assistantMessage : message)));
     } catch (error) {
       console.warn("Backend API call failed, falling back to local client logic:", error);
-      const scope = detectScopeLocal(cleanQuery, Boolean(selectedText.trim()));
-      const sources = retrieveLocal(cleanQuery, scope, doc, slide, selectedText);
+      const scope = detectScopeLocal(cleanQuery, Boolean(effectiveSelection.trim()));
+      const sources = retrieveLocal(cleanQuery, scope, doc, slide, effectiveSelection);
       const assistant = buildTutorAnswerLocal(cleanQuery, scope, sources, doc, slide);
-      setMessages((current) => [...current, assistant]);
+      setMessages((current) => current.map((message) => (message.id === loadingId ? assistant : message)));
     } finally {
       setIsLoading(false);
     }
@@ -476,6 +546,41 @@ function App() {
       x: Math.max(12, Math.min(clientX, window.innerWidth - menuWidth - 12)),
       y: Math.max(12, Math.min(clientY + 12, window.innerHeight - menuHeight - 12))
     };
+  }
+
+  function clearSlideSelection() {
+    window.getSelection?.()?.removeAllRanges();
+    setSelectedText("");
+    setSelectionMenu(null);
+    setSelectionHighlight(null);
+  }
+
+  function selectionRectsForFrame(selection, frame) {
+    if (!selection?.rangeCount || !frame) return [];
+    const frameRect = frame.getBoundingClientRect();
+    const rects = [];
+
+    for (let index = 0; index < selection.rangeCount; index += 1) {
+      const range = selection.getRangeAt(index);
+      Array.from(range.getClientRects()).forEach((rect) => {
+        const left = Math.max(rect.left, frameRect.left);
+        const top = Math.max(rect.top, frameRect.top);
+        const right = Math.min(rect.right, frameRect.right);
+        const bottom = Math.min(rect.bottom, frameRect.bottom);
+        const width = right - left;
+        const height = bottom - top;
+
+        if (width < 2 || height < 2) return;
+        rects.push({
+          left: left - frameRect.left,
+          top: top - frameRect.top,
+          width,
+          height
+        });
+      });
+    }
+
+    return rects.slice(0, 32);
   }
 
   function handleSelectionPointerDown(event) {
@@ -507,12 +612,17 @@ function App() {
 
     if (!cleanedSelection || !selectionStartsInPdf || !selectionEndsInPdf) {
       selection?.removeAllRanges();
-      setSelectedText("");
-      setSelectionMenu(null);
+      clearSlideSelection();
       return;
     }
 
+    const rects = selectionRectsForFrame(selection, event.currentTarget);
     setSelectedText(cleanedSelection);
+    setSelectionHighlight({
+      docId: doc.id,
+      page,
+      rects
+    });
     setSelectionMenu(clampSelectionMenuPosition(event.clientX, event.clientY));
   }
 
@@ -540,8 +650,7 @@ function App() {
   function goToPage(nextPage) {
     const safePage = Math.max(1, Math.min(nextPage, pageCount));
     setPage(safePage);
-    setSelectedText("");
-    setSelectionMenu(null);
+    clearSlideSelection();
   }
 
   function handleNavigateCitation(sourceStr) {
@@ -786,6 +895,22 @@ function App() {
               onMouseUp={handleSelectionPointerUp}
               onWheel={handleSlideWheel}
             >
+              {selectionHighlight?.docId === doc.id && selectionHighlight?.page === page ? (
+                <div className="selection-highlight-overlay" aria-hidden="true">
+                  {selectionHighlight.rects.map((rect, index) => (
+                    <span
+                      key={`${Math.round(rect.left)}-${Math.round(rect.top)}-${index}`}
+                      className="selection-highlight-rect"
+                      style={{
+                        left: `${rect.left}px`,
+                        top: `${rect.top}px`,
+                        width: `${rect.width}px`,
+                        height: `${rect.height}px`
+                      }}
+                    />
+                  ))}
+                </div>
+              ) : null}
               <Document
                 key={doc.id}
                 file={doc.pdfUrl}
@@ -873,7 +998,7 @@ function App() {
             ))}
           </div>
 
-          <div className="chat-log">
+          <div className="chat-log" ref={chatLogRef}>
             {messages.length === 0 ? (
               <div className="empty-state">
                 <Sparkles size={22} />
@@ -883,13 +1008,36 @@ function App() {
               messages.map((message, index) => (
                 <div className={`message ${message.role}`} key={`${message.role}-${index}`}>
                   {message.role === "user" ? (
-                    <p>{message.text}</p>
+                    <div className="message-body">
+                      <p>{message.text}</p>
+                      {message.selection ? (
+                        <div className="user-selection-preview">
+                          <span>Đoạn bôi đen</span>
+                          <p>{message.selection}</p>
+                        </div>
+                      ) : null}
+                    </div>
                   ) : (
                     <>
                       <div className="message-meta">
                         <span>{message.scope?.label}</span>
                       </div>
-                      <div style={{ whiteSpace: "pre-wrap" }}>{message.text}</div>
+                      {message.mode === "loading" ? (
+                        <div className="message-body loading-message">
+                          <span>{message.text}</span>
+                          <span className="typing-dots" aria-hidden="true">
+                            <span />
+                            <span />
+                            <span />
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="message-body markdown-body">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {message.text}
+                          </ReactMarkdown>
+                        </div>
+                      )}
                       {message.sources?.length > 0 ? (() => {
                         const renderedSources = message.sources.map((source) => {
                           const pageMatch = source.match(/Trang\s+(\d+)/i);
@@ -1006,6 +1154,7 @@ function App() {
                         </div>
                       ) : null}
 
+                      {message.mode !== "loading" ? (
                       <div className="ta-action-row" style={{ marginTop: "10px" }}>
                         <button
                           type="button"
@@ -1029,11 +1178,13 @@ function App() {
                           Chuyển TA (Telegram Push)
                         </button>
                       </div>
+                      ) : null}
                     </>
                   )}
                 </div>
               ))
             )}
+            <div ref={chatEndRef} />
 
           </div>
 
@@ -1044,14 +1195,32 @@ function App() {
               ask(question);
             }}
           >
+            {selectedText.trim() ? (
+              <div className="active-selection-chip">
+                <Highlighter size={13} />
+                <span>Đang có đoạn bôi đen</span>
+                <button type="button" onClick={() => setSelectedText("")}>
+                  Xoá
+                </button>
+              </div>
+            ) : null}
             <div className="input-shell">
               <Search size={16} />
-              <input
+              <textarea
+                ref={questionInputRef}
                 value={question}
                 onChange={(event) => setQuestion(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    ask(question);
+                  }
+                }}
                 placeholder="Nhập câu hỏi hoặc hỏi theo slide..."
+                rows={1}
+                disabled={isLoading}
               />
-              <button type="submit" aria-label="Gửi câu hỏi" disabled={isLoading}>
+              <button type="submit" aria-label="Gửi câu hỏi" disabled={isLoading || !question.trim()}>
                 <Send size={16} />
               </button>
             </div>
