@@ -158,6 +158,7 @@ function App() {
   const [pdfPageCount, setPdfPageCount] = useState(documents[0].pageCount);
   const [pdfPageWidth, setPdfPageWidth] = useState(0);
   const [question, setQuestion] = useState("");
+  const [pendingClarifyQuery, setPendingClarifyQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [draftTicket, setDraftTicket] = useState(null);
   const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
@@ -323,8 +324,14 @@ function App() {
         text: data.answer,
         needs_clarification: data.needs_clarification,
         clarification_options: data.clarification_options,
-        ta_handoff_suggested: data.ta_handoff_suggested
+        ta_handoff_suggested: data.ta_handoff_suggested,
+        // store original query so scope-choice buttons can re-send it
+        original_query: data.needs_clarification ? cleanQuery : undefined,
       };
+
+      if (data.needs_clarification) {
+        setPendingClarifyQuery(cleanQuery);
+      }
 
       setMessages((current) => [...current, assistantMessage]);
     } catch (error) {
@@ -866,9 +873,12 @@ function App() {
                       })() : null}
                       {message.needs_clarification ? (
                         <div className="clarify-actions">
-                          <button type="button" onClick={() => ask("Tóm tắt trang này", "current_page")}>Trang hiện tại</button>
-                          <button type="button" onClick={() => ask("Tóm tắt cả tài liệu này", "current_document")}>Cả tài liệu</button>
-                          <button type="button" onClick={() => ask("Tóm tắt cả buổi học hôm nay", "whole_session")}>Cả buổi học</button>
+                          {/* Re-send the ORIGINAL question with just the scope overridden.
+                              Previously these buttons sent hardcoded "Tóm tắt..." strings,
+                              causing the agent to summarize instead of answering the real question. */}
+                          <button type="button" onClick={() => ask(message.original_query || pendingClarifyQuery, "current_page")}>Trang hiện tại</button>
+                          <button type="button" onClick={() => ask(message.original_query || pendingClarifyQuery, "current_document")}>Cả tài liệu</button>
+                          <button type="button" onClick={() => ask(message.original_query || pendingClarifyQuery, "whole_session")}>Cả buổi học</button>
                         </div>
                       ) : null}
 
