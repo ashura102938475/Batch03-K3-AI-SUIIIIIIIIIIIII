@@ -18,9 +18,6 @@
 - Sửa một số lỗi grounding: không hiển thị citation khi không có câu trả lời thật,
   tách nguồn web khỏi nguồn slide và không coi lời chào như “hello” là yêu cầu tra
   cứu kiến thức.
-- Kiểm tra luồng đọc slide và phát hiện text đầu vào chứa cả watermark, tiêu đề lặp
-  và phần trang trí không mang ý nghĩa nội dung. Tôi tối ưu bước làm sạch để giảm
-  nhiễu trước khi dùng nội dung slide làm context.
 - Pull, so sánh và test các nhánh trước khi tích hợp vào `develop`.
 
 ## AI hỗ trợ tôi ở đâu
