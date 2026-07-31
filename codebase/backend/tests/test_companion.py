@@ -7,7 +7,13 @@ from unittest.mock import patch
 from companion.answer import _strip_empty_easy_confusion, _validate_citations, generate
 from companion.retriever import Chunk, load_corpus, search
 from companion.routing import should_try_external
-from companion.scope import ScopeResult, detect_intent, detect_scope, detect_scope_llm
+from companion.scope import (
+    ScopeResult,
+    detect_intent,
+    detect_scope,
+    detect_scope_llm,
+    is_information_request,
+)
 from companion.tavily_search import _source_priority
 
 
@@ -72,6 +78,41 @@ class CompanionCorpusTests(unittest.TestCase):
 
 
 class CompanionSafetyTests(unittest.TestCase):
+    def test_greeting_is_conversation_without_retrieval_or_citation(self) -> None:
+        query = "hello"
+        scope = detect_scope(
+            query,
+            has_selection=False,
+            current_day="day01",
+            current_page=8,
+        )
+        chunks = search(query, scope, [], selection="")
+        answer = generate(query, scope, chunks, provider=None)
+
+        self.assertEqual("conversation", detect_intent(query))
+        self.assertEqual("conversation", scope.scope)
+        self.assertEqual([], chunks)
+        self.assertEqual([], answer["sources"])
+        self.assertIn("Chào bạn", answer["text"])
+        self.assertFalse(is_information_request(query))
+
+    def test_short_topic_fragment_asks_for_a_real_question(self) -> None:
+        query = "transformer"
+        scope = detect_scope(
+            query,
+            has_selection=False,
+            current_day="day01",
+            current_page=8,
+        )
+
+        self.assertEqual("ambiguous", scope.scope)
+        self.assertTrue(scope.needs_clarification)
+
+    def test_question_and_request_are_information_seeking(self) -> None:
+        self.assertTrue(is_information_request("What is gradient descent?"))
+        self.assertTrue(is_information_request("Giải thích RAG cho mình"))
+        self.assertTrue(is_information_request("Tầm quan trọng của Transformer"))
+
     def test_optional_llm_scope_classifier_parses_fenced_json(self) -> None:
         class FencedJsonProvider:
             def complete(self, messages, tools=None, model=None, temperature=0.0):

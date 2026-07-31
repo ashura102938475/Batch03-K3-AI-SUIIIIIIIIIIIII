@@ -46,6 +46,18 @@ PROMPT_ATTACK_SIGNALS = (
     "bo qua huong dan", "bo qua moi", "ignore previous", "ignore all", "system prompt",
     "prompt he thong", "ma hoa base64", "base64 toan bo", "dong vai", "quen het luat",
 )
+CONVERSATION_PHRASES = {
+    "hello", "hi", "hey", "hi there", "hello there",
+    "xin chao", "chao", "chao ban", "chao tutor", "hello tutor", "hello bot",
+    "cam on", "cam on ban", "thanks", "thank you", "ok", "okay",
+}
+INFORMATION_REQUEST_SIGNALS = (
+    "la gi", "tai sao", "vi sao", "nhu the nao", "the nao", "bao nhieu", "o dau",
+    "giai thich", "tom tat", "tong hop", "so sanh", "phan tich", "cho biet",
+    "huong dan", "tim", "tra cuu", "dinh nghia", "vai tro", "tam quan trong", "cach ",
+    "what", "why", "how", "when", "where", "which", "explain", "summarize",
+    "compare", "define", "show me", "tell me", "find ",
+)
 
 # ----------------------------------------------------------------- scope
 SESSION_SIGNALS = ("buoi nay", "ca buoi", "toan buoi", "hom nay hoc gi", "buoi hoc nay")
@@ -64,6 +76,7 @@ PAGE_PATTERN = re.compile(r"(?:trang|slide|page)\s*0?(\d{1,3})")
 RANGE_PATTERN = re.compile(r"(?:tu\s*)?(?:trang|slide)\s*0?(\d{1,3})\s*(?:den|-|toi|->)\s*(?:trang|slide)?\s*0?(\d{1,3})")
 
 SCOPE_LABELS = {
+    "conversation": "Hội thoại",
     "selected_text": "Đoạn đang bôi đen",
     "current_page": "Trang hiện tại",
     "current_document": "Tài liệu hiện tại",
@@ -92,8 +105,19 @@ class ScopeResult:
         return self.scope == "ambiguous"
 
 
+def is_conversation(query: str) -> bool:
+    normalized = re.sub(r"[^a-z0-9\s]", " ", fold_text(query))
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    return normalized in CONVERSATION_PHRASES
+
+
+def is_information_request(query: str) -> bool:
+    folded = fold_text(query)
+    return "?" in query or has_any(folded, INFORMATION_REQUEST_SIGNALS)
+
+
 def detect_intent(query: str) -> str:
-    """prompt_attack > out_of_scope > logistics > summary > explain."""
+    """prompt_attack > out_of_scope > logistics > conversation > summary > explain."""
     folded = fold_text(query)
     if has_any(folded, PROMPT_ATTACK_SIGNALS):
         return "prompt_attack"
@@ -101,6 +125,8 @@ def detect_intent(query: str) -> str:
         return "out_of_scope"
     if has_any(folded, LOGISTICS_SIGNALS):
         return "logistics"
+    if is_conversation(query):
+        return "conversation"
     if has_any(folded, SUMMARY_SIGNALS):
         return "summary"
     if has_any(folded, EXPLAIN_SIGNALS):
@@ -126,6 +152,13 @@ def detect_scope(query: str, *, has_selection: bool, current_day: str, current_p
     folded = fold_text(query)
     intent = detect_intent(query)
 
+    if intent == "conversation":
+        return ScopeResult(
+            scope="conversation",
+            confidence="cao",
+            reason="Đây là lời chào hoặc phản hồi xã giao, không phải yêu cầu tra cứu kiến thức.",
+        )
+
     if intent in ("out_of_scope", "logistics", "prompt_attack"):
         return ScopeResult(
             scope="out_of_scope",
@@ -141,11 +174,20 @@ def detect_scope(query: str, *, has_selection: bool, current_day: str, current_p
             }[intent],
         )
 
-    if wants_external_knowledge(query):
+    if wants_external_knowledge(query) and is_information_request(query):
         return ScopeResult(
             scope="external_knowledge",
             confidence="cao",
             reason="Câu hỏi cần kiến thức hoặc nguồn tham khảo ngoài slide nên Tutor sẽ tra cứu nguồn web.",
+            target_day=current_day,
+            target_page=current_page,
+        )
+
+    if intent == "explain" and not is_information_request(query):
+        return ScopeResult(
+            scope="ambiguous",
+            confidence="thấp",
+            reason="Tin nhắn chưa thể hiện một câu hỏi hoặc yêu cầu kiến thức cụ thể.",
             target_day=current_day,
             target_page=current_page,
         )
@@ -255,8 +297,8 @@ def detect_scope_llm(
     system_prompt = (
         "Bạn là bộ phân loại Intent & Scope siêu tốc cho VLearn Tutor.\n"
         "Phân tích câu hỏi người học và trả về JSON chuẩn có định dạng:\n"
-        '{"intent": "summary"|"explain"|"logistics"|"out_of_scope"|"prompt_attack", '
-        '"scope": "selected_text"|"current_page"|"current_document"|"whole_session"|"external_knowledge"|"ambiguous"|"out_of_scope", '
+        '{"intent": "conversation"|"summary"|"explain"|"logistics"|"out_of_scope"|"prompt_attack", '
+        '"scope": "conversation"|"selected_text"|"current_page"|"current_document"|"whole_session"|"external_knowledge"|"ambiguous"|"out_of_scope", '
         '"reason": "Giải thích ngắn 1 câu"}'
     )
     user_prompt = f"CÂU HỎI: \"{query}\"\nCONTEXT: Trang hiện tại = {current_page}, Day = {current_day}, Bôi đen = {has_selection}"

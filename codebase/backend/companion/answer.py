@@ -57,6 +57,11 @@ CLARIFY_QUESTION = """Câu hỏi của bạn chưa nói rõ phạm vi, mà trả
 
 Bạn muốn mình đọc phạm vi nào?"""
 
+CONVERSATION_REPLY = (
+    "Chào bạn. Bạn có thể hỏi mình về trang đang mở, yêu cầu tóm tắt cả tài liệu, "
+    "hoặc đặt một câu hỏi cụ thể về kiến thức cần tìm hiểu."
+)
+
 
 def _no_grounding_message(scope_result) -> str:
     if scope_result.scope == "whole_session":
@@ -400,6 +405,10 @@ def generate(query: str, scope_result, chunks: list[Chunk], *, provider=None, mo
         "model": None,
         "error": None,
     }
+
+    if scope_result.scope == "conversation":
+        result["text"] = CONVERSATION_REPLY
+        return result
 
     if scope_result.scope == "external_knowledge":
         return _generate_external(

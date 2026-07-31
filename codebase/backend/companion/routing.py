@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from companion.text import fold_text, terms
+from companion.scope import is_information_request
 
 MISSING_GROUNDING_SIGNALS = (
     "thieu du lieu",
@@ -19,8 +20,10 @@ MISSING_GROUNDING_SIGNALS = (
 def should_try_external(query: str, scope_result, chunks, answer_text: str = "") -> bool:
     """Fallback only for implicit page scope, never for an explicitly requested slide."""
     if scope_result.scope == "external_knowledge":
-        return True
+        return is_information_request(query)
     if scope_result.scope != "current_page" or scope_result.confidence == "cao":
+        return False
+    if not is_information_request(query):
         return False
 
     if answer_text and any(signal in fold_text(answer_text) for signal in MISSING_GROUNDING_SIGNALS):

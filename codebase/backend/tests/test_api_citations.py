@@ -2,11 +2,32 @@ from __future__ import annotations
 
 import unittest
 
-from api import build_citation_payloads, source_values
+from fastapi.testclient import TestClient
+
+from api import app, build_citation_payloads, source_values
 from companion.retriever import Chunk
 
 
 class CitationPayloadTests(unittest.TestCase):
+    def test_conversation_has_no_citation_and_no_ta_handoff(self) -> None:
+        response = TestClient(app).post(
+            "/api/v1/companion/chat",
+            json={
+                "query": "hello",
+                "current_day": "day01",
+                "current_page": 8,
+                "selection": "",
+            },
+        )
+
+        self.assertEqual(200, response.status_code)
+        data = response.json()
+        self.assertEqual("conversation", data["intent"])
+        self.assertEqual("conversation", data["scope"])
+        self.assertEqual([], data["sources_used"])
+        self.assertEqual([], data["citations"])
+        self.assertFalse(data["ta_handoff_suggested"])
+
     def test_only_retrieved_sources_become_ui_citations(self) -> None:
         chunk = Chunk(
             chunk_id="page-8",

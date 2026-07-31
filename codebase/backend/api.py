@@ -61,8 +61,9 @@ def get_active_provider(provider_name: str | None = None):
 
 # ===================================================================== SCHEMAS
 
-IntentType = Literal["summary", "explain", "logistics", "out_of_scope", "prompt_attack"]
+IntentType = Literal["conversation", "summary", "explain", "logistics", "out_of_scope", "prompt_attack"]
 ScopeType = Literal[
+    "conversation",
     "selected_text",
     "current_page",
     "current_document",
@@ -473,10 +474,13 @@ def full_chat_pipeline(req: ChatPipelineRequest) -> ChatPipelineResponse:
         and verified_sources
     )
     suggest_ta = bool(
-        scope_res.scope in ("out_of_scope", "ambiguous")
-        or (not chunks and not external_success)
-        or answer["mode"] in ("mock", "guardrail")
-        or (chunks and not verified_sources)
+        scope_res.scope != "conversation"
+        and (
+            scope_res.scope in ("out_of_scope", "ambiguous")
+            or (not chunks and not external_success)
+            or answer["mode"] in ("mock", "guardrail")
+            or (chunks and not verified_sources)
+        )
     )
 
     return ChatPipelineResponse(
