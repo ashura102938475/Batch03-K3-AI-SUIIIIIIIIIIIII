@@ -26,7 +26,7 @@ import os
 
 from companion.answer import generate
 from companion.retriever import load_corpus, transcript_path
-from companion.scope import detect_intent, detect_scope
+from companion.classify import classify_turn
 from companion.trace import build_record, write_turn_trace
 from providers import make_provider
 
@@ -112,17 +112,20 @@ def ask(query: str, forced_scope: str | None = None) -> None:
     from companion.retriever import search
 
     selection = st.session_state["selection"]
-    intent = detect_intent(query)
-    scope_result = detect_scope(
+    decision = classify_turn(
         query,
         has_selection=bool(selection.strip()),
         current_day=st.session_state["day"],
         current_page=st.session_state["page"],
+        provider=PROVIDER,
     )
+    intent = decision.intent
+    scope_result = decision.scope_result
     if forced_scope:
         scope_result.scope = forced_scope
         scope_result.confidence = "cao"
         scope_result.reason = "Bạn đã chọn phạm vi này khi mình hỏi lại."
+        scope_result.origin = "forced"
 
     chunks = search(query, scope_result, CORPUS, selection=selection)
     answer = generate(query, scope_result, chunks, provider=PROVIDER)

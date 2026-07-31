@@ -1,12 +1,159 @@
 # Reflection - Bùi Gia Uy
 
-- Mã học viên: Cần bổ sung
+- Mã học viên: `Cần bổ sung`
 - Họ tên: Bùi Gia Uy
-- Phần phụ trách theo lịch sử commit: Prototype ban đầu, setup và tài liệu.
+- Phần phụ trách theo lịch sử commit: kiến trúc backend ban đầu (pipeline scope → retrieve
+  → answer → trace), lớp provider đa nhà cung cấp, golden set và eval, UX chat ở frontend,
+  và đợt nâng cấp định tuyến ngày 31/07.
+
+## Dấu vết commit (kiểm chứng được bằng `git log --author="Bùi Gia Uy"`)
+
+| Commit | Thời điểm | Nội dung |
+|---|---|---|
+| `ba59022` | 30/07 13:38 | CP2 — dựng toàn bộ prototype chạy end-to-end: 25 file, 1.946 dòng |
+| `35dc3ad` | 30/07 16:38 | README setup cho repo và frontend |
+| `12f4e6f` | 31/07 00:56 | Cải thiện xử lý tác vụ tutor (`api.py`, `answer.py`, `retriever.py`, `scope.py`) |
+| `01207bc` | 31/07 00:56 | Bổ sung case cho golden set + sửa `eval_golden_set.py` |
+| `1ed5932` | 31/07 00:56 | Sửa UX chat ở frontend (`App.jsx`, `styles.css`) |
+| `6791b78` | 31/07 01:08 | Cập nhật kết quả eval |
+| `17c6046` | 31/07 01:15 | Khôi phục UX chat sau rebase |
+| `bf963e1` | 31/07 12:07 | Re-baseline golden set v3 tại HEAD |
+| `107ecee` | 31/07 12:34 | Classifier lai + cổng an toàn cứng, đưa critical failure về 0 |
+
+Hai merge PR: `f25d2eb` (readme-setup), `6c9f15c` (feat/task-aware-tutor).
+
+## Đợt sửa thứ hai — `52e55fd`
+
+Xuất phát từ việc tự test tay bằng câu hỏi dài chứ không phải từ golden set (golden set
+toàn câu ngắn nên không lộ được nhóm lỗi này). 5 file, +378/−29 dòng:
+
+| File | Nội dung |
+|---|---|
+| `companion/answer.py` | Bỏ ràng buộc "ngắn gọn" trong `SYSTEM_PROMPT`, đổi khuôn trả lời sang giải thích sâu; thêm `_strip_template_meta` |
+| `companion/classify.py` | Model không còn được tự phát minh lệnh từ chối |
+| `companion/scope.py` | Tách tín hiệu web mạnh/yếu; lời chào chịu được đuôi xưng hô |
+| `tests/test_companion.py` | +3 lớp test cho 3 sửa đổi trên |
+| `tests/test_classify.py` | Thay test cũ bằng test khoá lại thẩm quyền từ chối |
+
+**Trạng thái:** 92/92 test xanh, đã kiểm chứng thủ công qua API thật. **Chưa chạy lại eval
+v3** cho đợt này — con số 25/31 (80.65%) là của trạng thái ở `107ecee`, trước đợt sửa.
+Tôi commit kèm ghi chú đó thay vì gán số cũ cho code mới.
+
+**Việc còn nợ:** chạy `eval_golden_set.py --version v3 --transport api` để có số đo cho
+`52e55fd`; cân nhắc cap số chunk để kéo latency xuống dưới bar 12 giây.
 
 ## Nội dung cá nhân
 
-1. Phần tôi trực tiếp làm và có thể giải thích: Chờ thành viên hoàn thiện.
-2. AI đã hỗ trợ và cách tôi kiểm chứng: Chờ thành viên hoàn thiện.
-3. Failure/feedback làm tôi đổi quyết định: Chờ thành viên hoàn thiện.
-4. Ưu tiên nếu có thêm một tuần: Chờ thành viên hoàn thiện.
+### 1. Phần tôi trực tiếp làm và có thể giải thích
+
+**Kiến trúc pipeline ở commit CP2 `ba59022`.** Tôi dựng bộ khung 4 tầng còn nguyên tới hôm
+nay: [scope.py](../codebase/backend/companion/scope.py) nhận diện phạm vi →
+[retriever.py](../codebase/backend/companion/retriever.py) truy xuất chunk theo phạm vi →
+[answer.py](../codebase/backend/companion/answer.py) sinh câu trả lời có citation →
+[trace.py](../codebase/backend/companion/trace.py) ghi trace từng lượt ra `runs/`.
+
+Quyết định thiết kế tôi ghi thẳng vào docstring của `scope.py` và vẫn bảo vệ được: **để
+bước quyết định trung tâm chạy bằng luật tất định, không gọi AI**, vì ba lý do — golden
+set chạy lại ra cùng kết quả nên chấm được; demo không phụ thuộc quota API ở bước quan
+trọng nhất; và sai ở đâu thì truy được ra đúng dòng luật, sửa ngay trong lúc sự kiện.
+
+**Lớp provider** ([providers/](../codebase/backend/providers/)): một interface `complete()`
+chung cho NVIDIA, Gemini, OpenAI, OpenRouter, Anthropic, kèm `RequestPacer` xử lý rate
+limit và backoff. Nhờ vậy đổi nhà cung cấp không phải sửa pipeline.
+
+**Golden set và eval** (`01207bc`, `6791b78`): bổ sung case và sửa script chấm.
+
+**Đợt nâng cấp định tuyến 31/07** (`bf963e1`, `107ecee`, cộng đợt sửa chưa commit) — phần
+này làm cùng AI, xem mục 2.
+
+> ⚠️ **Cần bạn tự xác nhận trước khi nộp:** đọc lại `scope.py` và `providers/base.py`, chắc
+> chắn bạn giải thích miệng được thứ tự kiểm tra phạm vi (rộng trước, hẹp sau) và vì sao
+> `RequestPacer` bail ngay khi gặp lỗi quota thay vì sleep. Luật vibe-coding ở
+> [04-rubric.md:85](../codebase/reference/04-rubric.md#L85) cho phép giám khảo hỏi bất kỳ
+> phần nào mang tên bạn.
+
+### 2. AI hỗ trợ tôi ở đâu, và tôi kiểm chứng bằng cách nào
+
+Đợt 31/07 tôi dùng AI để phân tích nguyên nhân gốc và triển khai nâng cấp định tuyến. Cách
+tôi kiểm chứng — mọi con số dưới đây đều có artifact trong repo, không phải lời hứa:
+
+**Bắt AI đo lại baseline trước khi sửa bất cứ dòng nào.** Đây là bước quan trọng nhất và
+nó đã lật ngược giả định của cả nhóm: báo cáo `EVAL_REPORT_V3.md` đang commit được sinh ở
+`eb6beb6`, nhưng `scope.py` bị sửa sau đó bởi `42108a3`. Chạy lại nguyên bộ 31 case tại
+HEAD cho ra **11/31 (35.48%)**, không phải 16/31 (51.61%) như báo cáo — và 7 critical
+failure thay vì 6. Commit `bf963e1` ghi nhận con số xấu này trước, để phần cải thiện sau
+đó là thật chứ không phải ảo giác do so với mốc sai.
+
+**Từ chối nhận kết quả không có số đo.** Sau khi sửa, chạy lại đúng bộ 31 case:
+overall 11/31 → **25/31 (80.65%)**, decision pass 38.71% → **96.77%**, critical failure
+7 → **0**, scope accuracy 48.39% → **100%**. Toàn bộ nằm trong `eval/EVAL_REPORT_V3.md`.
+
+**Bắt mỗi thay đổi định tuyến phải có regression test**, đúng luật
+[CLAUDE.md:30](../codebase/docs/CLAUDE.md#L30). Test đi từ 37 lên 92.
+
+**Tự test tay bằng câu hỏi dài, và tìm ra 3 lỗi mà eval không bắt được** (đợt sửa chưa
+commit ở mục trên). Đây là chỗ tôi đóng góp nhiều nhất ngoài việc chạy script:
+- Câu *"Tuần sau mình có bài kiểm tra giữa kỳ nên cần ôn lại, recap giúp mình cả deck"* bị
+  **từ chối thẳng**. Model 8B gán `intent: logistics` chỉ vì thấy chữ "bài kiểm tra", và
+  code đang ép thành `out_of_scope`. Lập luận ban đầu của AI — *"chấp nhận model chủ động
+  đòi từ chối luôn là hướng an toàn"* — sai: từ chối oan cũng là hỏng, mà là kiểu hỏng
+  người học im lặng bỏ dùng chứ không báo lỗi.
+- *"thầy nói thêm ngoài slide"* bị đẩy sang tra web, vì cụm "ngoài slide" nằm trong
+  `EXTERNAL_KNOWLEDGE_SIGNALS` — trong khi người học đang nói transcript bài giảng, thứ
+  nằm *trong* học liệu.
+- *"xin chào bạn"* ra `ambiguous` và bật nút Chuyển TA, vì danh sách lời chào khớp chính
+  xác có `"xin chao"` và `"chao ban"` nhưng thiếu `"xin chao ban"`.
+
+Bài học: **eval xanh không có nghĩa là sản phẩm đúng.** Golden set toàn câu ngắn, còn
+người học thật viết câu dài nhiều mệnh đề — và chính những mệnh đề phụ ("tuần sau có bài
+kiểm tra", "mình là thành viên trong nhóm") mới là thứ kéo lệch định tuyến.
+
+> ⚠️ **Cần bạn tự bổ sung:** những lần khác bạn dùng AI trong 2 ngày (viết README, sinh
+> case golden set, sửa UX chat...) và cách bạn kiểm lại. Tôi chỉ chứng kiến được đợt 31/07.
+
+### 3. Một failure hoặc feedback khiến tôi đổi quyết định
+
+**Failure:** 4 trong 7 critical failure của eval v3 đều cùng một hình dạng — hệ thống định
+tuyến sai, vẫn sinh câu trả lời, rồi gắn kèm `[Trang 3]` khiến câu trả lời **trông có căn
+cứ**. Câu *"dealine nộp lab là mấy giờ"* (sai chính tả) và *"gửi mình mã truy cập quản trị"*
+đều được trả lời kèm citation.
+
+**Đổi quyết định:** ban đầu tôi tin rằng classifier tất định là đủ an toàn, vì nó không phụ
+thuộc model. Nhưng tất định không đồng nghĩa với đúng — nó chỉ có nghĩa là **sai một cách
+ổn định**. Danh sách từ khoá khớp nguyên cụm nên mọi paraphrase đều lọt, và khi lọt thì
+`detect_intent` rơi về `"explain"`, `detect_scope` rơi về `"current_page"`, thành ra câu
+nguy hiểm nhất lại được xử lý như câu hỏi học liệu bình thường.
+
+Tôi đổi sang hai nguyên tắc:
+1. **Phòng thủ nhiều lớp thay vì một cổng thông minh.** Ngoài cổng an toàn ở đầu pipeline,
+   thêm một bất biến ở cuối: câu không được phép trả lời thì không được mang citation, bất
+   kể tầng phía trên quyết thế nào. Điều này khiến lỗi `cited_answer_when_answer_not_allowed`
+   bất khả thi về cấu trúc.
+2. **Phân biệt "luật khớp" với "luật đoán".** Thêm `ScopeResult.origin`, và chỉ hỏi LLM ở
+   đúng ca luật tự nhận đã bó tay. Nhờ vậy model dở, 404 hay timeout đều không kéo đổ được
+   những ca luật vốn đã đúng — LLM chỉ được hỏi 9/31 lượt.
+
+### 4. Nếu có thêm một tuần, tôi sẽ ưu tiên điều gì
+
+**Ưu tiên 1 — Retrieval, vì đó là nút thắt còn lại.** Sau đợt nâng cấp, tầng quyết định đã
+đạt 100% scope accuracy, nhưng citation grounding vẫn 70.59% so với bar 90%. Cả 5 case còn
+fail đều đã **định tuyến đúng** rồi, chỉ là câu trả lời chưa đặt đủ claim cạnh citation
+được phép. Hiện `_rank` trong [retriever.py](../codebase/backend/companion/retriever.py)
+chỉ là đếm từ trùng, không BM25, không embedding, không rerank. Đây là chỗ duy nhất còn
+chặn quality bar.
+
+**Ưu tiên 2 — Latency.** Live P90 đang 18.5 giây so với bar 12 giây. Nguyên nhân trực tiếp
+là hệ quả của việc định tuyến đúng: `current_document` giờ đọc cả 29 slide thay vì 1 trang.
+Đòn bẩy đã sẵn — cap số chunk qua `_coverage_sample` — nhưng cắt chunk sẽ kéo citation
+grounding xuống, nên phải làm cùng ưu tiên 1 chứ không tách rời.
+
+**Ưu tiên 3 — Golden set v4 chấm 3 tầng** như [MANUAL_REVIEW_V3.md:69](../eval/MANUAL_REVIEW_V3.md#L69)
+đề xuất, tách "kết quả người dùng thấy" khỏi "nhãn nội bộ khớp". Hiện case `V3-AMB-04` bị
+0 điểm chỉ vì nhãn intent là `explain` thay vì `summary`, trong khi hành vi người dùng thấy
+hoàn toàn đúng.
+
+**Ưu tiên 4 — Validation thật.** [validation/](../validation/) vẫn 0/5, và đây là phần
+không code thay được: cần 5 học viên thật ngồi dùng và ghi quote nguyên văn.
+
+> ⚠️ **Cần bạn tự xác nhận:** thứ tự ưu tiên trên là suy ra từ dữ liệu eval. Nếu bạn thấy
+> việc khác cấp bách hơn với vai trò của mình thì sửa lại — đây phải là ưu tiên của bạn.
