@@ -17,7 +17,7 @@ Loại: [x] Tối ưu tính năng có sẵn  [ ] Tính năng mới
 - **Problem statement:**  
   > Học viên đang hỏi/tóm tắt nội dung học liệu trên VLearn nhưng Tutor hiện tại thường chỉ hiểu đoạn bôi đen hoặc trang đang mở, không nhận ra phạm vi rộng hơn (tài liệu hoặc buổi học). Điều này khiến câu trả lời thiếu context, citation rỗng (46.2%) hoặc báo "không tìm thấy / không truy cập được" (55.8% lượt summary broad-scope); học viên phải tự lật lại tài liệu, hỏi lặp lại nhiều lần hoặc chuyển sang công cụ khác.
 
-- **Evidence (chuẩn B — Data Mining & Turn IDs từ `data/vlearn-pack/chatlog/`):**  
+- **Evidence (chuẩn B — Data Mining & Turn IDs từ `codebase/data/vlearn-pack/chatlog/`):**
   - **Quy mô data:** `1,261` lượt hỏi-đáp student-tutor, `369` users, `585` conversations.
   - **Số liệu mining chính:**
     - `156/1,261` lượt hỏi (`12.4%`) có nhu cầu summary / tổng hợp / ý chính / keyword / note (đến từ 111 users).
@@ -79,30 +79,30 @@ Loại: [x] Tối ưu tính năng có sẵn  [ ] Tính năng mới
 
 ### A. Core Capabilities (Năng Lực Cốt Lõi)
 
-- **CAP-1: Scope & Intent Detection**  
-  - **Intent (WHAT):** Phân loại ý định người học (tóm tắt, giải thích, hỏi logistics, out-of-scope, prompt attack) và xác định đúng 1 trong 4 phạm vi truy xuất (`selected_text`, `current_page`, `current_document`, `whole_session`) hoặc cờ `ambiguous` thông qua 1-pass fast classification powered by `google/gemma-4-31b-it` (NVIDIA NIM).  
-  - **Success Signal:** Đạt tỷ lệ nhận diện đúng scope $\ge 90\%$ trên bộ kiểm thử Golden Set 20 case, xử lý mượt mà câu hỏi teencode/khẩu ngữ.
+- **CAP-1: Scope & Intent Detection**
+  - **Intent (WHAT):** Phân loại ý định người học (tóm tắt, giải thích, hỏi logistics, out-of-scope, prompt attack) và xác định đúng 1 trong 4 phạm vi truy xuất (`selected_text`, `current_page`, `current_document`, `whole_session`) hoặc cờ `ambiguous`. Luồng mặc định dùng luật deterministic; có thể bật fast tier `google/gemma-3-1b-it` qua `NVIDIA_FAST_MODEL`, luôn fallback về luật khi API lỗi hoặc hết quota.
+  - **Success Signal:** Đạt tỷ lệ nhận diện đúng scope $\ge 90\%$ trên Golden Set, xử lý được câu hỏi teencode/khẩu ngữ và không làm hỏng luồng khi model phụ trợ không khả dụng.
 
-- **CAP-2: Scope-Aware Grounded Retrieval**  
-  - **Intent (WHAT):** Nạp trực tiếp toàn bộ ngữ cảnh slide PDF & transcript trong scope đã xác định vào Large Context Window của `google/gemma-4-31b-it` (Full Scope Context Injection) để loại bỏ rủi ro rớt chunk từ Vector DB.  
-  - **Success Signal:** 0% chunk ngoài phạm vi bị lọt; 100% recall ngữ cảnh trong scope; đạt độ chính xác citation $\ge 85\%$ khớp số trang/mã transcript.
+- **CAP-2: Scope-Aware Grounded Retrieval**
+  - **Intent (WHAT):** Lọc trước corpus slide PDF và transcript theo đúng scope, sau đó lấy các đoạn liên quan và bổ sung coverage sampling cho yêu cầu tóm tắt phạm vi rộng trước khi gửi sang model sinh câu trả lời.
+  - **Success Signal:** 0% chunk ngoài phạm vi bị lọt; đạt độ chính xác citation $\ge 85\%$ khớp số trang/mã transcript.
 
 - **CAP-3: Citation-First Grounded Answer Generation**  
   - **Intent (WHAT):** Sinh câu trả lời cấu trúc chuẩn tiếng Việt (Tổng quan, Ý chính có citation `[Trang N]` / `[Txx-NNN]`, Keyword, Phần dễ nhầm) chỉ sử dụng duy nhất thông tin từ nguồn đã retrieve.  
   - **Success Signal:** 0% bịa đặt thông tin (Hallucination rate = 0%); 100% các ý chính có trích dẫn nguồn hợp lệ.
 
-- **CAP-4: Ambiguity Clarification & User Scope Overrides (HAX G10)**  
-  - **Intent (WHAT):** Hiển thị bộ 3 nút chọn phạm vi (`Trang hiện tại`, `Cả tài liệu`, `Cả buổi`) khi câu hỏi mơ hồ ("Tóm tắt bài này đi"), cho phép học viên chủ động sửa scope và thực thi sinh lại câu trả lời trực tiếp.  
+- **CAP-4: Ambiguity Clarification & User Scope Overrides (HAX G10)**
+  - **Intent (WHAT):** Hiển thị bộ 3 nút chọn phạm vi (`Trang hiện tại`, `Cả tài liệu`, `Cả buổi`) khi câu hỏi mơ hồ ("Tóm tắt bài này đi"), cho phép học viên chủ động sửa scope và thực thi sinh lại câu trả lời trực tiếp.
   - **Success Signal:** 100% case mơ hồ trả về giao diện hỏi lại; cập nhật ngay câu trả lời theo scope mới trong $<2$ giây khi học viên chọn lại.
 
-- **CAP-5: Out-of-Scope Protection & Conditional TA Handoff**  
-  - **Intent (WHAT):** Từ chối an toàn các yêu cầu ngoài phạm vi học liệu và hiển thị **Draft Ticket Modal** cho phép học viên xem lại/chỉnh sửa câu hỏi + context trước khi gửi hỗ trợ cho TA.  
+- **CAP-5: Out-of-Scope Protection & Conditional TA Handoff**
+  - **Intent (WHAT):** Từ chối an toàn các yêu cầu ngoài phạm vi học liệu và hiển thị **Draft Ticket Modal** cho phép học viên xem lại/chỉnh sửa câu hỏi + context trước khi gửi hỗ trợ cho TA.
   - **Success Signal:** 100% case ngoài phạm vi hoặc thiếu dữ liệu đưa ra câu trả lời từ chối hữu ích kèm Draft Ticket Modal chuyển TA.
 
 ### B. Constraints (Ràng Buộc Thiết Kế & Kiến Trúc)
 
-1. **NVIDIA NIM API & Model Selection:** Sử dụng chính `google/gemma-4-31b-it` trên NVIDIA NIM API Catalog cho Fast Intent Classification & Grounded Answer Generation qua interface chuẩn `complete()`.
-2. **Data Confidentiality & Privacy:** Không commit dữ liệu thô của data pack (`data/vlearn-pack/`) vào git repo; chỉ trích dẫn ngắn qua `turn_id` / mã `[Txx-NNN]`.
+1. **NVIDIA NIM API & Model Selection:** Dùng `nvidia/nemotron-3-nano-30b-a3b` để sinh câu trả lời grounded; fast classifier tùy chọn dùng `google/gemma-3-1b-it`. Cả hai đi qua interface chuẩn `complete()` và có cấu hình riêng bằng biến môi trường.
+2. **Data Confidentiality & Privacy:** Data pack nằm tại `codebase/data/vlearn-pack/` và chỉ được dùng trong phạm vi hackathon; khi xuất artifact ra ngoài repo, chỉ trích dẫn ngắn qua `turn_id` / mã `[Txx-NNN]`.
 3. **Graceful Fallback & Offline Mocking:** Khi không có API key hoặc provider bị nghẽn/hết quota, hệ thống tự chuyển sang chế độ Mock với badge `🟡 MOCK` mà không làm crash ứng dụng.
 4. **Provider Abstraction:** Hỗ trợ đa dạng provider (NVIDIA NIM/API Catalog, Gemini, OpenAI, OpenRouter) thông qua interface chuẩn `complete()`.
 
@@ -180,40 +180,40 @@ Loại: [x] Tối ưu tính năng có sẵn  [ ] Tính năng mới
 
 ## §7. Kiểm Thử
 
-- **Chiều chất lượng & Định nghĩa kiểm chứng:**  
-  1. *Scope Detection Accuracy:* ≥ 80% câu hỏi nhận diện đúng 1 trong 4 phạm vi (Selected Text, Current Page, Current Document, Whole Session).  
-  2. *Citation Accuracy:* ≥ 75% câu trả lời tóm tắt trích dẫn đúng số slide/trang context.  
-  3. *Hallucination Rate:* 0% câu bịa đặt thông tin không có trong tài liệu khi khẳng định là từ slide.  
-  4. *Graceful Handoff Rate:* 100% case low-confidence hoặc out-of-scope có gợi ý hỏi lại hoặc chuyển TA.
+- **Chiều chất lượng & Định nghĩa kiểm chứng:**
+  1. *Decision Pass:* ≥ 85% câu hỏi nhận diện đúng intent, scope, clarification, behavior và quyết định chuyển TA.
+  2. *Live Answer Pass:* ≥ 70% case cần model đạt đồng thời yêu cầu nội dung, citation và workflow.
+  3. *Claim-level Citation Grounding:* ≥ 90% answer case có đủ claim kỳ vọng và claim nằm gần citation được human-label cho phép.
+  4. *Critical Failures:* 0 lỗi ở deadline/logistics, bài kiểm tra chấm điểm, credential, prompt attack hoặc trả lời khi nguồn không có căn cứ.
 
-- **Golden Set (20 cases chuẩn theo data analysis & turn IDs):**  
-  - **8 case Local Scope** (Current Page / Selected Text): T0649 (slide 37), T0523 (trang 9), T0520 (trang 63 vs 96), T0399 (biểu đồ trang 6), 4 case hỏi khái niệm/đoạn bôi đen trên trang đang xem.  
-  - **6 case Document Scope** (File PDF hiện tại): T1164 (trang 1-44), T0213 (tất cả slide PDF), 4 case tóm tắt file tài liệu Day 4, Day 5.  
-  - **4 case Session Scope** (Cả buổi học / Day N): T0408 (slide Day 5), T0345 (slide Day 4), 2 case tóm tắt tổng quan Buổi 6 & Buổi 3.  
-  - **2 case Out-of-scope / Security / Logistics:** T0707 (download tài liệu), T0794/T0582 (xin API key / prompt injection).
+- **Golden Set theo version:**
+  - **v2 Regression (23 case):** giữ nguyên để phát hiện code cũ bị regression; không dùng làm bằng chứng generalization.
+  - **v3 Robustness (31 case):** chạy qua FastAPI thật, gồm paraphrase, typo, teencode, mixed-language, selected-text mismatch, retrieved-but-insufficient, claim-level citation và 10 case từ chatlog/quan sát thực tế.
+  - Dataset đã phát hành không được sửa để làm điểm tăng. Thay đổi hành vi kỳ vọng hoặc cơ cấu case phải tạo version kế tiếp.
 
-- **Quality Bar (Chốt từ 23:59 N1):**  
-  > **Đạt khi:** ≥ 80% case qua bộ kiểm thử Golden Set (xác nhận đúng scope & cite đúng nguồn), 0 case bịa đặt thông tin ngoài học liệu, và 100% case ngoài phạm vi được xử lý từ chối an toàn hoặc chuyển TA.
+- **Quality Bar v3:**
+  > **Đạt khi:** ≥ 75% tổng case, ≥ 85% decision pass, ≥ 70% live answer pass, ≥ 90% claim-level citation grounding và 0 critical failure.
 
 - **Kết quả các lượt chạy (Tracking table):**
 
-| Lượt chạy | Ngày/Giờ | Số case test | Scope Acc (%) | Citation Acc (%) | Hallucination (%) | Đánh giá chung |
+| Lượt chạy | Ngày/Giờ | Số case test | Scope Acc (%) | Citation Grounding (%) | Critical / Hallucination | Đánh giá chung |
 |---|---|---|---|---|---|---|
 | Lượt 1 (Baseline VLearn Tutor) | 30/07 11:00 | 20 | 35.0% | 35.3% | 15.0% | Fail nhiều ở broad summary (55.8% no-access) & empty citation (64.7%). |
-| Lượt 2 (Smart Companion Prototype) | *Dự kiến CP3* | 20 | -- | -- | -- | *Sẽ cập nhật sau khi chạy prototype* |
+| Lượt 2 (v2 Regression) | 30/07 16:44 | 23 | 100.0% | 100.0% source-membership | Chưa đo semantic | 23/23, nhưng case và scorer bám sát implementation. |
+| Lượt 3 (v3 Robustness) | 30/07 17:10 | 31 | 58.06% | 64.71% claim-level | 6 critical fail | 16/31; backlog chính là paraphrase scope, safety paraphrase và conditional handoff. |
 
 ---
 
 ## §8. Phân Công & Kế Hoạch
 
-- **Phân công có tên:**  
-  - **Spec & Architecture:** Member B (`[Tên B]`) — Chốt spec.md, flow thiết kế & 4 lớp chỗ khó.  
-  - **Data Evidence & Mining:** Member A (`[Tên A]`) — Phân tích chatlog, đếm số liệu & trích lọc Turn IDs.  
-  - **Prompt & Golden Set Eval:** Member C (`[Tên C]`) — Viết prompt system scope-detection, RAG grounding & chạy eval 20 cases.  
-  - **Code & Prototype:** Member D (`[Tên D]`) — Build UI VLearn Tutor sidebar & tích hợp API call RAG.  
-  - **Validation & Demo:** Member E (`[Tên E]`) — Khảo sát willing users, ghi log feedback CP5 & chuẩn bị slide demo.
+- **Phân công có tên (theo lịch sử commit, cần bổ sung mã HV/họ tên trong README):**
+  - **Backend API, provider/model, tích hợp TA:** `ashura102938475`.
+  - **Data Evidence, Golden Set Eval & Grounding:** `Hieunc2910`.
+  - **Frontend, PDF Reader & Citation UX:** `codecuatai`.
+  - **Prototype ban đầu, Setup & Docs:** Bùi Gia Uy (`BuiGiaUy`).
+  - **Validation & Demo:** Chưa có owner được xác nhận; nhóm phải chốt trước khi user test.
 
-- **Willing users (≥3 tên học viên K3):** `[Học viên K3 1]`, `[Học viên K3 2]`, `[Học viên K3 3]`.
+- **Willing users (≥3 học viên K3):** Chưa xác nhận. Chỉ điền sau khi người dùng đồng ý tham gia test.
 
 - **Kế hoạch vòng Validation CP5 (3 câu hỏi phỏng vấn):**  
   1. *"Khi xem lại slide trên VLearn, câu trả lời tóm tắt kèm trỏ nguồn [Slide X] có giúp bạn ôn bài nhanh hơn không?"*  

@@ -35,6 +35,7 @@ scratch/
 
 # Node & Build Output
 node_modules/
+.vite/
 dist/
 build/
 
@@ -42,4 +43,3 @@ build/
 .bmad/
 .memlog.md
 .memlog
-

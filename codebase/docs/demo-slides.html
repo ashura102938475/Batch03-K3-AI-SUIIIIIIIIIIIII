@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>VLearn Smart Contextual Companion - Demo Slides</title>
+  <style>
+    @page { size: 13.333in 7.5in; margin: 0; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: #dfe6ec; font-family: "Segoe UI", Arial, sans-serif; color: #15252f; }
+    .slide {
+      width: 13.333in;
+      height: 7.5in;
+      padding: 0.48in 0.58in 0.4in;
+      page-break-after: always;
+      position: relative;
+      overflow: hidden;
+      background: #f8faf8;
+      border-top: 0.13in solid #153b32;
+    }
+    .slide:last-child { page-break-after: auto; }
+    .kicker { color: #d66a36; font-size: 15px; font-weight: 800; text-transform: uppercase; }
+    h1 { margin: 8px 0 8px; font-size: 38px; line-height: 1.08; letter-spacing: 0; color: #153b32; }
+    h2 { margin: 8px 0 18px; font-size: 30px; line-height: 1.12; letter-spacing: 0; color: #153b32; }
+    h3 { margin: 0 0 8px; font-size: 18px; letter-spacing: 0; }
+    p, li, td, th { font-size: 16px; line-height: 1.35; }
+    ul { margin: 8px 0 0; padding-left: 22px; }
+    li { margin: 7px 0; }
+    .subtitle { max-width: 10.8in; margin: 0 0 24px; font-size: 20px; line-height: 1.35; color: #41555e; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .panel { border: 1px solid #bdcbd0; border-radius: 6px; padding: 17px 18px; background: #fff; }
+    .panel.accent { border-left: 7px solid #d66a36; }
+    .metric { font-size: 34px; font-weight: 800; color: #126a71; line-height: 1; }
+    .metric-label { margin-top: 7px; font-size: 14px; color: #52656d; }
+    .quote { border-left: 6px solid #d66a36; padding: 11px 17px; font-size: 21px; line-height: 1.35; background: #fff; }
+    .flow { display: grid; grid-template-columns: repeat(5, 1fr); align-items: stretch; gap: 10px; margin: 22px 0; }
+    .step { padding: 16px 12px; border: 1px solid #9cb3b6; border-radius: 5px; text-align: center; background: #fff; font-size: 15px; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; background: #fff; }
+    th { background: #153b32; color: white; text-align: left; }
+    th, td { padding: 10px 12px; border: 1px solid #c8d2d5; vertical-align: top; }
+    .chosen { background: #e5f3ef; font-weight: 700; }
+    .pass { color: #18764f; font-weight: 800; }
+    .fail { color: #b43b32; font-weight: 800; }
+    .warning { background: #fff2d7; border: 1px solid #e7b74e; border-radius: 5px; padding: 12px 16px; }
+    .footer { position: absolute; left: 0.58in; right: 0.58in; bottom: 0.22in; display: flex; justify-content: space-between; color: #6b7b82; font-size: 12px; }
+    .source { font-size: 12px; color: #65777e; margin-top: 12px; }
+    .roadmap { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 20px; }
+    .day { border-top: 6px solid #126a71; background: #fff; padding: 15px; min-height: 130px; }
+    .day strong { display: block; color: #d66a36; margin-bottom: 8px; }
+    .small { font-size: 14px; color: #52656d; }
+  </style>
+</head>
+<body>
+  <section class="slide">
+    <div class="kicker">01 · User & Job</div>
+    <h1>VLearn Smart Contextual Companion</h1>
+    <p class="subtitle">Giúp học viên hiểu nhanh đúng phạm vi học liệu, biết câu trả lời đến từ đâu và có đường chuyển TA khi hệ thống không đủ căn cứ.</p>
+    <div class="grid-2">
+      <div class="panel accent">
+        <h3>Người dùng cụ thể</h3>
+        <p>Học viên K3 đang đọc hoặc ôn lại slide trên VLearn, cần tóm tắt, giải thích hoặc nối kiến thức giữa nhiều trang.</p>
+        <h3>Job cần hoàn thành</h3>
+        <p>Nắm đúng ý chính mà không phải tự lật lại toàn bộ tài liệu, mất mạch đọc hoặc tin nhầm một citation không liên quan.</p>
+      </div>
+      <div class="quote">“Cải thiện chất lượng phản hồi bằng cách nhận diện đúng phạm vi, truy xuất đúng slide, bổ sung kiến thức nền khi cần và chuyển TA khi độ tin cậy thấp.”</div>
+    </div>
+    <div class="grid-3" style="margin-top:18px">
+      <div class="panel"><div class="metric">1.261</div><div class="metric-label">lượt hỏi - đáp trong chatlog</div></div>
+      <div class="panel"><div class="metric">369</div><div class="metric-label">người dùng đã ẩn danh</div></div>
+      <div class="panel"><div class="metric">585</div><div class="metric-label">cuộc hội thoại</div></div>
+    </div>
+    <div class="footer"><span>Nguồn: chatlog VLearn hackathon đã ẩn danh</span><span>1 / 6</span></div>
+  </section>
+
+  <section class="slide">
+    <div class="kicker">02 · Why This Feature</div>
+    <h2>Chọn pain lớn, xảy ra ngay trong core learning flow</h2>
+    <table>
+      <thead><tr><th>Ứng viên</th><th>Bằng chứng</th><th>Khả thi trong hackathon</th><th>Quyết định</th></tr></thead>
+      <tbody>
+        <tr class="chosen"><td>Context-aware summary & citation</td><td>156/1.261 lượt có nhu cầu summary; 87/156 gặp no-access reply</td><td>Scope routing + retrieval + citation</td><td>CHỌN</td></tr>
+        <tr><td>Multimodal visual slide reader</td><td>Quan sát Tutor khó đọc diagram/ảnh</td><td>Cần thêm vision/OCR và eval riêng</td><td>Để sau</td></tr>
+        <tr><td>Discord logistics bot</td><td>22/1.261 lượt liên quan logistics/file</td><td>Làm được nhưng xa core flow</td><td>Không chọn</td></tr>
+      </tbody>
+    </table>
+    <div class="grid-3" style="margin-top:20px">
+      <div class="panel"><div class="metric">55,8%</div><div class="metric-label">summary nhận phản hồi “không truy cập được”</div></div>
+      <div class="panel"><div class="metric">64,7%</div><div class="metric-label">summary không có citation</div></div>
+      <div class="panel"><div class="metric">10,3%</div><div class="metric-label">summary có context trang cite đúng trang đó</div></div>
+    </div>
+    <p class="source">Nguồn: `codebase/docs/data-analysis-vlearn-context.md`; mẫu 1.261 turns.</p>
+    <div class="footer"><span>Quyết định dựa trên tần suất, cost of pain và khả năng kiểm thử</span><span>2 / 6</span></div>
+  </section>
+
+  <section class="slide">
+    <div class="kicker">03 · Solution & Live Demo</div>
+    <h2>Một quyết định AI có thể quan sát và đo được</h2>
+    <p class="subtitle"><strong>AI quyết định:</strong> trả lời từ học liệu chính thức, bổ sung nguồn ngoài, hỏi lại hay chuyển TA. Model sinh grounded answer: <strong>NVIDIA Nemotron 3 Nano 30B</strong>.</p>
+    <div class="flow">
+      <div class="step">1. Nhận câu hỏi<br><span class="small">+ trang/selection</span></div>
+      <div class="step">2. Hiểu intent & scope</div>
+      <div class="step">3. Truy xuất<br><span class="small">751 chunks</span></div>
+      <div class="step">4. Sinh và kiểm citation</div>
+      <div class="step">5. Trả lời / hỏi lại / TA</div>
+    </div>
+    <div class="grid-3">
+      <div class="panel"><h3>Demo A · Trong slide</h3><p>Giải thích đúng trang, mỗi claim quan trọng có citation nhảy về nguồn.</p></div>
+      <div class="panel"><h3>Demo B · Ngoài slide</h3><p>Tách rõ “Theo học liệu” và “Kiến thức nền bổ sung”; nguồn ngoài chỉ dùng khi được phép.</p></div>
+      <div class="panel"><h3>Demo C · Thiếu căn cứ</h3><p>Hỏi lại hoặc tạo handoff có context cho TA, thay vì đoán một câu trả lời có vẻ tự tin.</p></div>
+    </div>
+    <p class="source">Bằng chứng chạy: FastAPI + React/PDF; NVIDIA, Tavily và Telegram/webhook được bật bằng biến môi trường.</p>
+    <div class="footer"><span>Live path: codebase/backend + codebase/frontend</span><span>3 / 6</span></div>
+  </section>
+
+  <section class="slide">
+    <div class="kicker">04 · Evaluation</div>
+    <h2>Kết quả thật còn cách quality bar một khoảng lớn</h2>
+    <div class="grid-2">
+      <div>
+        <table>
+          <thead><tr><th>Chỉ số</th><th>Kết quả</th><th>Chuẩn</th></tr></thead>
+          <tbody>
+            <tr><td>Overall pass</td><td class="fail">16/31 · 51,61%</td><td>≥ 75%</td></tr>
+            <tr><td>Decision pass</td><td class="fail">51,61%</td><td>≥ 85%</td></tr>
+            <tr><td>Live answer pass</td><td class="fail">58,82%</td><td>≥ 70%</td></tr>
+            <tr><td>Citation grounding</td><td class="fail">64,71%</td><td>≥ 90%</td></tr>
+            <tr><td>Critical failures</td><td class="fail">6</td><td>0</td></tr>
+            <tr><td>P90 latency</td><td class="pass">10.094 ms</td><td>&lt; 12.000 ms</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div class="panel accent">
+          <h3>Failure quan trọng nhất</h3>
+          <p>Các paraphrase về “cả tài liệu/cả buổi” còn bị hiểu thành trang hiện tại. Một số yêu cầu unsafe/out-of-scope vẫn được trả lời và gắn citation, tạo cảm giác grounded sai.</p>
+        </div>
+        <div class="warning" style="margin-top:14px">
+          <strong>Cam kết không hạ chuẩn:</strong> ≥75% tổng thể và 0 lần bịa claim/citation, trả lời hộ bài đánh giá hoặc bịa logistics.
+        </div>
+        <p class="source">Nguồn: `eval/EVAL_REPORT_V3.md`, API run ngày 30/07/2026.</p>
+      </div>
+    </div>
+    <div class="footer"><span>31 case · 10 case từ quan sát · có cả case fail</span><span>4 / 6</span></div>
+  </section>
+
+  <section class="slide">
+    <div class="kicker">05 · User Validation</div>
+    <h2>Chưa có bằng chứng user test: đây là blocker trước demo</h2>
+    <div class="warning"><strong>Trạng thái hiện tại: 0/5 người dùng tối thiểu.</strong> Không thay thế bằng quote do nhóm hoặc AI tự viết.</div>
+    <div class="grid-2" style="margin-top:18px">
+      <div class="panel">
+        <h3>Task cần quan sát</h3>
+        <ul>
+          <li>Hỏi đúng trang và kiểm citation.</li>
+          <li>Tóm tắt cả tài liệu/buổi học.</li>
+          <li>Hỏi kiến thức ngoài slide.</li>
+          <li>Đặt câu mơ hồ hoặc thiếu căn cứ.</li>
+          <li>Thử luồng chuyển TA.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="quote">[Chờ quote thật #1: người dùng gặp pain hoặc hiểu sai ở đâu?]</div>
+        <div class="quote" style="margin-top:14px">[Chờ quote thật #2: citation/handoff có làm họ đổi mức tin tưởng?]</div>
+      </div>
+    </div>
+    <p class="source">Biểu mẫu thu thập: `validation/feedback-log.md`. Slide này phải cập nhật bằng dữ liệu thật trước khi nộp.</p>
+    <div class="footer"><span>Không có evidence thì không tuyên bố validation thành công</span><span>5 / 6</span></div>
+  </section>
+
+  <section class="slide">
+    <div class="kicker">06 · One-Week Roadmap & Reflection</div>
+    <h2>Ưu tiên giảm lỗi quyết định trước khi thêm tính năng</h2>
+    <div class="roadmap">
+      <div class="day"><strong>Ngày 1-2</strong><h3>Routing</h3><p>Sửa paraphrase broad-scope và lớp unsafe/out-of-scope; thêm regression case mới.</p></div>
+      <div class="day"><strong>Ngày 3</strong><h3>Grounding</h3><p>Kiểm citation ở claim-level; không cho citation che một câu trả lời không được phép.</p></div>
+      <div class="day"><strong>Ngày 4-5</strong><h3>User test</h3><p>Test ít nhất 5 học viên, ghi quote thật và time-on-task.</p></div>
+      <div class="day"><strong>Ngày 6-7</strong><h3>Rerun</h3><p>Đóng băng v4, chạy API đầy đủ, manual review và cập nhật slide.</p></div>
+    </div>
+    <div class="panel accent" style="margin-top:20px">
+      <h3>Bài học chính</h3>
+      <p>Một câu trả lời trôi chảy chưa phải là chất lượng. Với trợ lý học tập, quyết định đúng phạm vi và biết khi nào không nên trả lời quan trọng ngang với model sinh văn bản.</p>
+    </div>
+    <p class="source">Roadmap xuất phát trực tiếp từ 6 critical failures và khoảng cách quality gate của eval v3.</p>
+    <div class="footer"><span>VLearn Smart Contextual Companion</span><span>6 / 6</span></div>
+  </section>
+</body>
+</html>
