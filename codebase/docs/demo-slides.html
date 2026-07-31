@@ -120,24 +120,24 @@
         <table>
           <thead><tr><th>Chỉ số</th><th>Kết quả</th><th>Chuẩn</th></tr></thead>
           <tbody>
-            <tr><td>Overall pass</td><td class="fail">16/31 · 51,61%</td><td>≥ 75%</td></tr>
-            <tr><td>Decision pass</td><td class="fail">51,61%</td><td>≥ 85%</td></tr>
-            <tr><td>Live answer pass</td><td class="fail">58,82%</td><td>≥ 70%</td></tr>
-            <tr><td>Citation grounding</td><td class="fail">64,71%</td><td>≥ 90%</td></tr>
-            <tr><td>Critical failures</td><td class="fail">6</td><td>0</td></tr>
-            <tr><td>P90 latency</td><td class="pass">10.094 ms</td><td>&lt; 12.000 ms</td></tr>
+            <tr><td>Overall pass</td><td class="pass">25/31 · 80,65%</td><td>≥ 75%</td></tr>
+            <tr><td>Decision pass</td><td class="pass">96,77%</td><td>≥ 85%</td></tr>
+            <tr><td>Live answer pass</td><td class="pass">70,59%</td><td>≥ 70%</td></tr>
+            <tr><td>Citation grounding</td><td class="fail">70,59%</td><td>≥ 90%</td></tr>
+            <tr><td>Critical failures</td><td class="pass">0</td><td>0</td></tr>
+            <tr><td>P90 latency</td><td class="fail">18.507 ms</td><td>&lt; 12.000 ms</td></tr>
           </tbody>
         </table>
       </div>
       <div>
         <div class="panel accent">
           <h3>Failure quan trọng nhất</h3>
-          <p>Các paraphrase về “cả tài liệu/cả buổi” còn bị hiểu thành trang hiện tại. Một số yêu cầu unsafe/out-of-scope vẫn được trả lời và gắn citation, tạo cảm giác grounded sai.</p>
+          <p>Routing và safety đã qua bar, nhưng câu trả lời phạm vi rộng còn thiếu claim hoặc đặt claim chưa sát citation. P90 tăng vì tóm tắt đúng cả tài liệu/buổi phải đọc nhiều chunk hơn.</p>
         </div>
         <div class="warning" style="margin-top:14px">
           <strong>Cam kết không hạ chuẩn:</strong> ≥75% tổng thể và 0 lần bịa claim/citation, trả lời hộ bài đánh giá hoặc bịa logistics.
         </div>
-        <p class="source">Nguồn: `eval/EVAL_REPORT_V3.md`, API run ngày 30/07/2026.</p>
+        <p class="source">Nguồn: `eval/EVAL_REPORT_V3.md`, API run ngày 31/07/2026.</p>
       </div>
     </div>
     <div class="footer"><span>31 case · 10 case từ quan sát · có cả case fail</span><span>4 / 6</span></div>
@@ -171,16 +171,16 @@
     <div class="kicker">06 · One-Week Roadmap & Reflection</div>
     <h2>Ưu tiên giảm lỗi quyết định trước khi thêm tính năng</h2>
     <div class="roadmap">
-      <div class="day"><strong>Ngày 1-2</strong><h3>Routing</h3><p>Sửa paraphrase broad-scope và lớp unsafe/out-of-scope; thêm regression case mới.</p></div>
-      <div class="day"><strong>Ngày 3</strong><h3>Grounding</h3><p>Kiểm citation ở claim-level; không cho citation che một câu trả lời không được phép.</p></div>
+      <div class="day"><strong>Ngày 1-2</strong><h3>Retrieval</h3><p>BM25/embedding + rerank cho broad-scope; lấy đủ claim nhưng giảm chunk dư.</p></div>
+      <div class="day"><strong>Ngày 3</strong><h3>Grounding</h3><p>Kiểm claim-level và đặt citation sát claim; giữ hard gate 0 critical.</p></div>
       <div class="day"><strong>Ngày 4-5</strong><h3>User test</h3><p>Test ít nhất 5 học viên, ghi quote thật và time-on-task.</p></div>
-      <div class="day"><strong>Ngày 6-7</strong><h3>Rerun</h3><p>Đóng băng v4, chạy API đầy đủ, manual review và cập nhật slide.</p></div>
+      <div class="day"><strong>Ngày 6-7</strong><h3>Rerun</h3><p>Đóng băng v4, đo grounding + P90, manual review và cập nhật slide.</p></div>
     </div>
     <div class="panel accent" style="margin-top:20px">
       <h3>Bài học chính</h3>
       <p>Một câu trả lời trôi chảy chưa phải là chất lượng. Với trợ lý học tập, quyết định đúng phạm vi và biết khi nào không nên trả lời quan trọng ngang với model sinh văn bản.</p>
     </div>
-    <p class="source">Roadmap xuất phát trực tiếp từ 6 critical failures và khoảng cách quality gate của eval v3.</p>
+    <p class="source">Roadmap xuất phát từ 5 failure grounding phạm vi rộng, 1 mismatch intent và P90 18,5 giây của eval v3.</p>
     <div class="footer"><span>VLearn Smart Contextual Companion</span><span>6 / 6</span></div>
   </section>
 </body>

@@ -33,6 +33,8 @@ trả lời”.
 
 - Prototype: React/Vite + FastAPI, PDF thật từ data pack.
 - Model mặc định: `nvidia/nemotron-3-nano-30b-a3b`.
-- Golden set v3: 31 case; báo cáo lưu gần nhất 16/31, 6 critical failures.
+- Golden set v3: 31 case; báo cáo lưu gần nhất 25/31 (80,65%), 0 critical
+  failures; còn thiếu citation grounding (70,59% so với 90%) và P90 latency
+  (18,5 giây so với 12 giây).
 - Validation: chưa có bằng chứng thật (`0/5`).
 - Demo slide: bản nháp 6 trang, chưa được coi là final khi validation chưa đủ.

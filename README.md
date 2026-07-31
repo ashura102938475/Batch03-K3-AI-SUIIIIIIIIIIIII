@@ -6,15 +6,14 @@ quan, trả lời kèm citation và đề xuất chuyển TA khi thiếu căn c�
 
 ## Thành viên và phân công
 
-Bảng dưới đây tổng hợp theo lịch sử commit. Nhóm cần điền mã học viên và xác nhận
-họ tên trước khi nộp.
+Bảng dưới đây tổng hợp theo thông tin thành viên và lịch sử commit.
 
 | Mã HV | Họ tên | GitHub | Phần phụ trách |
 |---|---|---|---|
-| Cần bổ sung | Cần xác nhận | `ashura102938475` | Backend API, provider/model, tích hợp TA |
-| Cần bổ sung | Cần xác nhận | `Hieunc2910` | Phân tích dữ liệu, golden set/evaluator, grounding |
-| Cần bổ sung | Cần xác nhận | `codecuatai` | Frontend, PDF reader, chat/citation UX |
-| Cần bổ sung | Bùi Gia Uy | `BuiGiaUy` | Prototype ban đầu, setup và tài liệu |
+| 2A202601867 | Bùi Gia Uy | `BuiGiaUy` | Prototype ban đầu, setup, routing/eval và tài liệu |
+| 2A202601735 | Nguyễn Anh Trà | `ashura102938475` | Backend API, provider/model, retrieval và tích hợp TA |
+| 2A202601339 | Trần Văn Tài | `codecuatai` | Frontend, PDF reader và chat/citation UX |
+| 2A202601931 | Nguyễn Chí Hiếu | `Hieunc2910` | Phân tích dữ liệu, golden set/evaluator, grounding và tích hợp |
 
 ## Cấu trúc bài nộp
 
@@ -76,20 +75,22 @@ cd codebase\backend
 ```
 
 Golden set v3 có **31 câu**, trong đó **10 câu bắt nguồn từ quan sát thực tế**.
-Lượt chạy được lưu gần nhất đạt **16/31 (51,61%)** và còn **6 lỗi critical**.
-Chuẩn cam kết là tối thiểu **75% tổng thể** và **không có lỗi critical** về bịa
-claim/citation, trả lời hộ bài đánh giá hoặc bịa thông tin logistics. Xem đầy đủ
-tại [`eval/EVAL_REPORT_V3.md`](eval/EVAL_REPORT_V3.md).
+Lượt chạy được lưu gần nhất đạt **25/31 (80,65%)**, decision pass **96,77%** và
+**0 lỗi critical**. Hệ thống đã qua chuẩn tổng thể, decision, live answer và safety;
+chưa qua chuẩn citation grounding (**70,59% < 90%**) và P90 latency
+(**18,5 giây > 12 giây**). Xem đầy đủ tại
+[`eval/EVAL_REPORT_V3.md`](eval/EVAL_REPORT_V3.md).
 
 ## Trạng thái bài nộp
 
 - `spec.md`: đã có AI Spec và bằng chứng data mining.
-- `demo-slides.pdf`: bản nháp 6 trang; slide validation còn chờ dữ liệu thật.
+- `demo-slides.pdf`: bản nháp 6 trang đã đồng bộ eval mới; slide validation còn chờ dữ liệu thật.
 - `eval/`: đã có golden set v2/v3, kết quả và manual review.
 - `validation/`: biểu mẫu đã sẵn sàng, hiện chưa có đủ 5 user test.
-- `reflection/`: đã tạo file theo contributor; mỗi thành viên phải tự hoàn thiện.
-- Trước khi nộp cần bổ sung mã HV, xác nhận họ tên, ít nhất 5 feedback thật và
-  reflection cá nhân.
+- `reflection/`: Nguyễn Chí Hiếu đã hoàn thiện bản reflection; Bùi Gia Uy có bản
+  nháp chi tiết cần tự xác nhận; Nguyễn Anh Trà và Trần Văn Tài đang chờ tự viết.
+- Trước khi nộp cần có ít nhất 5 feedback thật, reflection cá nhân của các thành
+  viên còn lại và xác nhận lại nội dung của từng người.
 
 ## Bảo mật
 

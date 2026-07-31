@@ -1,7 +1,12 @@
 # Manual review - Golden Set v3
 
+> **Artifact lịch sử:** bảng này review response của lượt chạy ngày 30/07 có strict
+> score `16/31`; không phải trạng thái code mới nhất. Kết quả tự động hiện hành ngày
+> 31/07 là `25/31`, `0` critical failure tại `EVAL_REPORT_V3.md`. Giữ file này để
+> chứng minh nhóm đã đọc từng response và theo dõi failure qua các vòng.
+
 This review reads the actual response for every v3 case. It complements, but does
-not overwrite, the strict automatic result in `EVAL_REPORT_V3.md`.
+not overwrite the automatic report generated for its corresponding run.
 
 ## Review scale
 
