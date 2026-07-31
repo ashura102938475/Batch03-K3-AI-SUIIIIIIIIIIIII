@@ -278,25 +278,6 @@ function App() {
     setPdfPageCount(nextDoc.pageCount);
     setSelectedText("");
     setSelectionMenu(null);
-    setMessages((current) => {
-      const lastMsg = current[current.length - 1];
-      if (lastMsg && lastMsg.status === "Đổi tài liệu" && lastMsg.docId === nextDoc.id) {
-        return current;
-      }
-      return [
-        ...current,
-        {
-          role: "assistant",
-          mode: "system",
-          status: "Đổi tài liệu",
-          docId: nextDoc.id,
-          confidence: 86,
-          scope: { label: "Tài liệu hiện tại", reason: `Đã mở ${nextDoc.filename}.` },
-          sources: [],
-          text: `Đã chuyển sang ${nextDoc.title} (Trang ${initialPage}).`
-        }
-      ];
-    });
   }
 
   async function ask(rawQuery, forcedScopeStr = null) {
@@ -768,6 +749,9 @@ function App() {
               </div>
               <div>
                 <h2>VLearn Tutor</h2>
+                <p title={`${doc.title} · Trang ${page}`}>
+                  {doc.title} · Trang {page}
+                </p>
               </div>
             </div>
             <div style={{ display: "flex", gap: "4px" }}>
@@ -796,7 +780,9 @@ function App() {
                 <p>Chọn một scenario hoặc nhập câu hỏi để bắt đầu.</p>
               </div>
             ) : (
-              messages.map((message, index) => (
+              messages
+                .filter((message) => message.mode !== "system" && message.status !== "Đổi tài liệu")
+                .map((message, index, visibleMessages) => (
                 <div className={`message ${message.role}`} key={`${message.role}-${index}`}>
                   {message.role === "user" ? (
                     <p>{message.text}</p>
@@ -906,7 +892,7 @@ function App() {
                           }}
                           onMouseEnter={e => e.currentTarget.style.opacity = "1"}
                           onMouseLeave={e => e.currentTarget.style.opacity = "0.75"}
-                          onClick={() => escalateToTA(messages[index - 1]?.text || message.text)}
+                          onClick={() => escalateToTA(visibleMessages[index - 1]?.text || message.text)}
                         >
                           <SendHorizontal size={11} />
                           Chuyển TA
