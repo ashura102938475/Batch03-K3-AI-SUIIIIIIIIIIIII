@@ -36,4 +36,7 @@ def should_try_external(query: str, scope_result, chunks, answer_text: str = "")
         return False
     source_terms = terms(" ".join(chunk.text for chunk in chunks))
     overlap = query_terms & source_terms
-    return not overlap
+    # Require >30% of query terms to be covered by internal corpus.
+    # A single stray overlap (e.g. "rag" appears once) should not suppress web search.
+    overlap_ratio = len(overlap) / len(query_terms)
+    return overlap_ratio < 0.3

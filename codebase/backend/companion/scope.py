@@ -37,6 +37,11 @@ EXTERNAL_KNOWLEDGE_SIGNALS = (
     "kien thuc ngoai", "nguon ngoai", "nguon ben ngoai", "ben ngoai slide",
     "ngoai slide", "ngoai tai lieu", "tim tren web", "tim tren mang",
     "tra tren web", "internet", "google", "tham khao them", "mo rong them",
+    # More natural phrasings users actually type
+    "tim them nguon", "them nguon", "nguon tham khao", "them tai lieu",
+    "tai lieu tham khao", "doc them", "tim hieu them", "tim them ve",
+    "nguon ngoai slide", "tu nguon ngoai", "web search", "search web",
+    "tim kiem tren mang", "tra cuu them", "ho tro them",
 ) + EXTERNAL_SUPPORT_SIGNALS
 PROHIBITED_ASSESSMENT_SIGNALS = (
     "dap an bai kiem tra", "dap an quiz", "chi can dap an", "lam ho bai kiem tra",
