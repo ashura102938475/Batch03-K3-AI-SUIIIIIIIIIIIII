@@ -136,9 +136,21 @@ class GenerateResponseRequest(BaseModel):
     model: str | None = None
 
 
+class CitationPayload(BaseModel):
+    label: str
+    kind: str
+    title: str
+    source_id: str
+    day: str | None = None
+    page: int | None = None
+    url: str | None = None
+    excerpt: str
+
+
 class GroundedAnswerPayload(BaseModel):
     text: str
     sources_used: list[str]
+    citations: list[CitationPayload]
     mode: str
     model: str | None
     latency_ms: int
@@ -169,6 +181,7 @@ class ChatPipelineResponse(BaseModel):
     needs_clarification: bool
     clarification_options: list[ClarificationOption] | None = None
     sources_used: list[str]
+    citations: list[CitationPayload]
     answer: str
     mode: str
     model: str | None
@@ -193,6 +206,62 @@ class TAHandoffResponse(BaseModel):
     current_day: str
     current_page: int
     message: str
+
+
+def build_citation_payloads(answer: dict[str, Any], chunks: list[Chunk]) -> list[CitationPayload]:
+    """Return only citations that map to a retrieved chunk or Tavily result."""
+    if not str(answer.get("text") or "").strip() or answer.get("mode") == "guardrail":
+        return []
+
+    payloads: list[CitationPayload] = []
+    seen: set[tuple[str, str]] = set()
+    external_sources = answer.get("external_sources", [])
+
+    for source_value in answer.get("sources", []):
+        if source_value.startswith(("http://", "https://")):
+            external = next(
+                (item for item in external_sources if item.get("url") == source_value),
+                None,
+            )
+            if not external:
+                continue
+            source_index = external_sources.index(external) + 1
+            key = ("web", source_value)
+            if key in seen:
+                continue
+            seen.add(key)
+            payloads.append(CitationPayload(
+                label=f"Nguồn {source_index}",
+                kind="web",
+                title=external.get("title") or source_value,
+                source_id=source_value,
+                url=source_value,
+                excerpt=" ".join((external.get("snippet") or "").split())[:220],
+            ))
+            continue
+
+        chunk = next((item for item in chunks if item.cite == source_value), None)
+        if not chunk:
+            continue
+        key = (chunk.kind, source_value)
+        if key in seen:
+            continue
+        seen.add(key)
+        payloads.append(CitationPayload(
+            label=source_value,
+            kind=chunk.kind,
+            title=chunk.title,
+            source_id=chunk.doc_id,
+            day=chunk.day,
+            page=chunk.page,
+            excerpt=" ".join(chunk.text.split())[:220],
+        ))
+
+    return payloads
+
+
+def source_values(citations: list[CitationPayload]) -> list[str]:
+    return [citation.url or citation.label for citation in citations]
 
 
 # ===================================================================== ENDPOINTS
@@ -319,9 +388,11 @@ def generate_response_api(req: GenerateResponseRequest) -> GroundedAnswerPayload
     ]
 
     answer = generate(req.query, scope_res, chunks, provider=provider, model=req.model)
+    citations = build_citation_payloads(answer, chunks)
     return GroundedAnswerPayload(
         text=answer["text"],
-        sources_used=answer["sources"],
+        sources_used=source_values(citations),
+        citations=citations,
         mode=answer["mode"],
         model=answer["model"],
         latency_ms=answer["latency_ms"],
@@ -375,6 +446,9 @@ def full_chat_pipeline(req: ChatPipelineRequest) -> ChatPipelineResponse:
         chunks = []
         answer = generate(req.query, scope_res, chunks, provider=provider, model=req.model)
 
+    citations = build_citation_payloads(answer, chunks)
+    verified_sources = source_values(citations)
+    answer["sources"] = verified_sources
     record = build_record(
         query=req.query,
         intent=intent,
@@ -396,13 +470,13 @@ def full_chat_pipeline(req: ChatPipelineRequest) -> ChatPipelineResponse:
     external_success = bool(
         scope_res.scope == "external_knowledge"
         and answer["mode"] in ("external", "mock")
-        and answer["sources"]
+        and verified_sources
     )
     suggest_ta = bool(
         scope_res.scope in ("out_of_scope", "ambiguous")
         or (not chunks and not external_success)
         or answer["mode"] in ("mock", "guardrail")
-        or (chunks and not answer["sources"])
+        or (chunks and not verified_sources)
     )
 
     return ChatPipelineResponse(
@@ -413,7 +487,8 @@ def full_chat_pipeline(req: ChatPipelineRequest) -> ChatPipelineResponse:
         confidence=scope_res.confidence,
         needs_clarification=scope_res.needs_clarification,
         clarification_options=clarification_options,
-        sources_used=answer["sources"],
+        sources_used=verified_sources,
+        citations=citations,
         answer=answer["text"],
         mode=answer["mode"],
         model=answer["model"],

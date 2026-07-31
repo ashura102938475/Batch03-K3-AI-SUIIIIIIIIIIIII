@@ -32,6 +32,8 @@ Thumbs.db
 # Logs & Temporary files
 *.log
 scratch/
+**/runs/*.json
+**/runs/*.jsonl
 
 # Node & Build Output
 node_modules/
