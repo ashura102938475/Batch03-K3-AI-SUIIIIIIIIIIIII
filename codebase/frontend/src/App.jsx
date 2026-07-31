@@ -886,27 +886,30 @@ function App() {
                         </div>
                       ) : null}
 
-                      <div className="ta-action-row" style={{ marginTop: "10px" }}>
+                      <div className="ta-action-row" style={{ marginTop: "6px", display: "flex", justifyContent: "flex-end" }}>
                         <button
                           type="button"
                           className="ta-button"
                           style={{
-                            background: "#e11d48",
-                            color: "#fff",
-                            border: "none",
-                            padding: "6px 12px",
-                            borderRadius: "6px",
-                            fontSize: "12px",
-                            fontWeight: "600",
+                            background: "transparent",
+                            color: "#e11d48",
+                            border: "1px solid #fca5a5",
+                            padding: "2px 8px",
+                            borderRadius: "4px",
+                            fontSize: "11px",
+                            fontWeight: "500",
                             cursor: "pointer",
-                            display: "flex",
+                            display: "inline-flex",
                             alignItems: "center",
-                            gap: "6px"
+                            gap: "4px",
+                            opacity: 0.75,
                           }}
+                          onMouseEnter={e => e.currentTarget.style.opacity = "1"}
+                          onMouseLeave={e => e.currentTarget.style.opacity = "0.75"}
                           onClick={() => escalateToTA(messages[index - 1]?.text || message.text)}
                         >
-                          <SendHorizontal size={14} />
-                          Chuyển TA (Telegram Push)
+                          <SendHorizontal size={11} />
+                          Chuyển TA
                         </button>
                       </div>
                     </>
