@@ -23,16 +23,22 @@ SUMMARY_SIGNALS = (
     "y chinh", "noi dung chinh",
     "noi dung quan trong", "nhung phan chinh", "cac phan chinh", "thao luan chinh",
     "keyword", "tu khoa", "can hoc", "on lai", "ghi chu", "note",
+    "recap", "sum up", "ke lai", "dang nho", "tat ca noi dung", "noi nhung gi",
 )
 EXPLAIN_SIGNALS = ("giai thich", "la gi", "nghia la", "tai sao", "vi sao", "vi du", "khac nhau", "so sanh")
 LOGISTICS_SIGNALS = (
     "deadline", "han nop", "nop bai", "nop o dau", "link zoom", "lich hoc", "diem so",
     "tai file", "tai tai lieu", "download", "tai ve", "link repo", "dang ky",
+    "dealine",
 )
-OUT_OF_SCOPE_SIGNALS = ("api key", "apikey", "password", "mat khau", "admin", "token he thong", "database", "credential")
+OUT_OF_SCOPE_SIGNALS = (
+    "api key", "apikey", "password", "mat khau", "admin", "token he thong", "database", "credential",
+    "khoa bi mat",
+)
 EXTERNAL_SUPPORT_SIGNALS = (
     "cai dat pytorch", "pytorch tren macos", "loi cai dat thu vien",
     "sua may tinh", "cau hinh wifi",
+    "setup", "fix sao", "bi loi",
 )
 # Nói thẳng là muốn ra khỏi học liệu -> luôn tính là cần nguồn ngoài.
 EXTERNAL_STRONG_SIGNALS = (
@@ -57,10 +63,12 @@ EXTERNAL_KNOWLEDGE_SIGNALS = EXTERNAL_STRONG_SIGNALS + EXTERNAL_WEAK_SIGNALS
 PROHIBITED_ASSESSMENT_SIGNALS = (
     "dap an bai kiem tra", "dap an quiz", "chi can dap an", "lam ho bai kiem tra",
     "lam ho bai tap nop", "giai ho bai thi", "tra loi ho bai thi",
+    "loi giai",
 )
 PROMPT_ATTACK_SIGNALS = (
     "bo qua huong dan", "bo qua moi", "ignore previous", "ignore all", "system prompt",
     "prompt he thong", "ma hoa base64", "base64 toan bo", "dong vai", "quen het luat",
+    "instruction bi mat",
 )
 CONVERSATION_PHRASES = {
     "hello", "hi", "hey", "hi there", "hello there",
@@ -73,13 +81,15 @@ INFORMATION_REQUEST_SIGNALS = (
     "huong dan", "tim", "tra cuu", "dinh nghia", "vai tro", "tam quan trong", "cach ",
     "what", "why", "how", "when", "where", "which", "explain", "summarize",
     "compare", "define", "show me", "tell me", "find ",
+    "chi", "gi", "nao", "ra sao", "recap", "sum up", "ke lai", "dua ra",
 )
 
 # ----------------------------------------------------------------- scope
-SESSION_SIGNALS = ("buoi nay", "ca buoi", "toan buoi", "hom nay hoc gi", "buoi hoc nay")
+SESSION_SIGNALS = ("buoi nay", "ca buoi", "toan buoi", "hom nay hoc gi", "buoi hoc nay", "buoi so hai")
 DOCUMENT_SIGNALS = (
     "tai lieu nay", "file nay", "ca file", "ca bai", "toan bo bai", "toan bo slide",
     "tat ca slide", "toan bo tai lieu", "tat ca cac trang", "ca quyen", "toan bo file",
+    "deck", "bo slide", "het noi dung", "tat ca noi dung",
 )
 PAGE_SIGNALS = ("trang nay", "slide nay", "trang hien tai", "slide hien tai", "o day")
 SELECTION_SIGNALS = ("doan nay", "cho nay", "phan nay", "boi den", "doan tren", "doan duoc chon", "doan vua chon")
@@ -98,7 +108,7 @@ SCOPE_ANCHOR_NOUNS = (
     "lesson", "session", "chuong", "document", "transcript", "doan",
 )
 
-DAY_PATTERN = re.compile(r"(?:buoi|day|ngay)\s*0?(\d{1,2})")
+DAY_PATTERN = re.compile(r"(?:buoi|day|ngay|lesson)\s*0?(\d{1,2})")
 PAGE_PATTERN = re.compile(r"(?:trang|slide|page)\s*0?(\d{1,3})")
 RANGE_PATTERN = re.compile(r"(?:tu\s*)?(?:trang|slide)\s*0?(\d{1,3})\s*(?:den|-|toi|->)\s*(?:trang|slide)?\s*0?(\d{1,3})")
 
@@ -168,7 +178,7 @@ def detect_intent(query: str) -> str:
     folded = fold_text(query)
     if has_any(folded, PROMPT_ATTACK_SIGNALS):
         return "prompt_attack"
-    if has_any(folded, OUT_OF_SCOPE_SIGNALS + PROHIBITED_ASSESSMENT_SIGNALS):
+    if has_any(folded, OUT_OF_SCOPE_SIGNALS + PROHIBITED_ASSESSMENT_SIGNALS + EXTERNAL_SUPPORT_SIGNALS):
         return "out_of_scope"
     if has_any(folded, LOGISTICS_SIGNALS):
         return "logistics"

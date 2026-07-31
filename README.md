@@ -11,10 +11,10 @@ họ tên trước khi nộp.
 
 | Mã HV | Họ tên | GitHub | Phần phụ trách |
 |---|---|---|---|
-| Cần bổ sung | Cần xác nhận | `ashura102938475` | Backend API, provider/model, tích hợp TA |
-| Cần bổ sung | Cần xác nhận | `Hieunc2910` | Phân tích dữ liệu, golden set/evaluator, grounding |
-| Cần bổ sung | Cần xác nhận | `codecuatai` | Frontend, PDF reader, chat/citation UX |
-| Cần bổ sung | Bùi Gia Uy | `BuiGiaUy` | Prototype ban đầu, setup và tài liệu |
+| 2A202601735 | Nguyễn Anh Trà | `ashura102938475` | Backend API, provider/model, tích hợp TA, golden set/evaluator |
+| 2A202601931 | Nguyễn Chí Hiếu | `Hieunc2910` | Phân tích dữ liệu, golden set/evaluator |
+| 2A202601339 | Trần Văn Tài | `codecuatai` | Frontend, PDF reader, chat/citation UX |
+| 2A202601867 | Bùi Gia Uy | `BuiGiaUy` | Fix một số bug|
 
 ## Cấu trúc bài nộp
 
